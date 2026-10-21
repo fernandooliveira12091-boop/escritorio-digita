@@ -1,8 +1,9 @@
 import type { Session } from "@supabase/supabase-js";
-import { Loader2, Scale } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { siteUrl, supabase } from "../../lib/supabase";
 import { initialData, startSync } from "../../store/sync";
+import { BrandLogo } from "../ui/Brand";
 import { useUi } from "../../store/ui";
 
 type Phase = "loading" | "signedOut" | "recovery" | "noWorkspace" | "ready" | "error";
@@ -27,9 +28,9 @@ function Shell({ children }: { children: ReactNode }) {
   return (
     <main className="flex min-h-full items-center justify-center bg-card px-4 py-10 dark:bg-[#0F1115]">
       <div className="w-full max-w-sm space-y-6">
-        <div className="flex items-center justify-center gap-2">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-white" aria-hidden="true"><Scale size={22} /></span>
-          <span className="text-xl font-semibold tracking-tight">Escritório Digital</span>
+        <div className="flex flex-col items-center gap-2">
+          <BrandLogo className="w-full max-w-[260px] px-4 py-3 shadow-sm" />
+          <span className="muted text-xs font-medium uppercase tracking-[0.2em]">Escritório Digital</span>
         </div>
         <div className="surface space-y-5 p-6 shadow-sm">{children}</div>
       </div>

@@ -2,6 +2,7 @@ import {
   BarChart3, Bot, Briefcase, Calendar, CheckSquare, CreditCard, Gift, Handshake, Home, LifeBuoy, PanelLeftClose, PanelLeftOpen, Scale, Settings, Users, Wallet, Bell, X,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
+import { BrandLogo } from "../ui/Brand";
 import { useUi } from "../../store/ui";
 
 const MAIN = [
@@ -25,14 +26,7 @@ const SECONDARY = [
 ];
 
 function Logo({ collapsed }: { collapsed: boolean }) {
-  return (
-    <span className="flex items-center gap-2">
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-white" aria-hidden="true">
-        <Scale size={18} />
-      </span>
-      {!collapsed && <span className="truncate text-[15px] font-semibold tracking-tight">Escritório Digital</span>}
-    </span>
-  );
+  return <BrandLogo variant={collapsed ? "mono" : "full"} className={collapsed ? "" : "w-full max-w-[170px]"} />;
 }
 
 function Nav({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
@@ -68,13 +62,13 @@ export function Sidebar() {
   return (
     <>
       <aside className={`sticky top-0 hidden h-screen shrink-0 flex-col border-r border-line bg-white transition-[width] dark:border-white/10 dark:bg-[#12151B] lg:flex ${collapsed ? "w-[72px]" : "w-[210px]"}`}>
-        <div className={`flex h-14 items-center gap-1 px-4 ${collapsed ? "flex-col justify-center px-2 pt-2" : "justify-between"}`}>
-          <NavLink to="/home" aria-label="Escritório Digital, ir para Meu Painel"><Logo collapsed={collapsed} /></NavLink>
+        <div className={`flex items-center gap-1 ${collapsed ? "flex-col justify-center px-2 pt-3" : "justify-between py-3 pl-3 pr-2"}`}>
+          <NavLink to="/home" aria-label="Ir para Meu Painel" className="min-w-0 flex-1"><Logo collapsed={collapsed} /></NavLink>
           <button className="btn-icon h-8 w-8" onClick={toggleSidebar} aria-label={collapsed ? "Expandir menu" : "Recolher menu"} aria-expanded={!collapsed}>
             {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
           </button>
         </div>
-        <div className={collapsed ? "pt-6" : "pt-2"}>
+        <div className={collapsed ? "pt-4" : "pt-1"}>
           <Nav collapsed={collapsed} />
         </div>
       </aside>
@@ -82,7 +76,7 @@ export function Sidebar() {
       {mobileNavOpen && (
         <div className="fixed inset-0 z-50 bg-black/40 lg:hidden" onMouseDown={(e) => e.target === e.currentTarget && setMobileNav(false)}>
           <aside role="dialog" aria-modal="true" aria-label="Menu" className="flex h-full w-[260px] flex-col bg-white shadow-xl dark:bg-[#12151B]">
-            <div className="flex h-14 items-center justify-between px-4">
+            <div className="flex items-center justify-between gap-2 py-3 pl-3 pr-2">
               <Logo collapsed={false} />
               <button className="btn-icon" onClick={() => setMobileNav(false)} aria-label="Fechar menu"><X size={18} /></button>
             </div>

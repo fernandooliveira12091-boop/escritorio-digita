@@ -7,6 +7,7 @@ import { cloudMode } from "../../lib/supabase";
 import { signOutAndClear, useSyncStatus } from "../../store/sync";
 import { useCurrentUser, useStore } from "../../store/useStore";
 import { Avatar, Dropdown, MenuItem } from "../ui/basics";
+import { BrandLogo } from "../ui/Brand";
 
 function GlobalSearch() {
   const [q, setQ] = useState("");
@@ -100,6 +101,7 @@ export function Header() {
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-line bg-white/90 px-4 backdrop-blur dark:border-white/10 dark:bg-[#0F1115]/90 sm:gap-3">
       <button className="btn-icon lg:hidden" onClick={() => setMobileNav(true)} aria-label="Abrir menu"><Menu size={20} /></button>
+      <BrandLogo variant="mono" className="shrink-0 lg:hidden" />
       <GlobalSearch />
       <div className="ml-auto flex items-center gap-1 sm:gap-2">
         <SyncBadge />
