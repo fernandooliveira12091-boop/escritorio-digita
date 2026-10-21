@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body, #root { height: 100%; }
+  body { @apply bg-white text-ink antialiased dark:bg-[#0F1115] dark:text-gray-100; font-family: Inter, system-ui, sans-serif; font-size: 14px; }
+  :focus-visible { @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-white dark:ring-offset-[#0F1115]; }
+  input, select, textarea { @apply text-sm; }
+}
+
+@layer components {
+  .card { @apply rounded-xl border border-line bg-card p-4 dark:border-white/10 dark:bg-[#171A21]; }
+  .surface { @apply rounded-xl border border-line bg-white dark:border-white/10 dark:bg-[#12151B]; }
+  .btn { @apply inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-line bg-white px-3 py-2 text-sm font-medium text-ink transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-[#171A21] dark:text-gray-100 dark:hover:bg-white/5; }
+  .btn-primary { @apply btn border-primary bg-primary text-white hover:bg-primary-hover dark:border-primary dark:bg-primary dark:hover:bg-primary-hover; }
+  .btn-ghost { @apply btn border-transparent bg-transparent dark:bg-transparent; }
+  .btn-icon { @apply inline-flex h-9 w-9 items-center justify-center rounded-lg text-ink-muted transition hover:bg-gray-100 hover:text-ink dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white; }
+  .input { @apply w-full rounded-lg border border-line bg-white px-3 py-2 text-ink placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-white/10 dark:bg-[#0F1115] dark:text-gray-100; }
+  .label { @apply mb-1 block text-xs font-medium text-ink-muted dark:text-gray-400; }
+  .th { @apply whitespace-nowrap px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-ink-muted dark:text-gray-400; }
+  .td { @apply px-3 py-2.5 align-middle; }
+  .muted { @apply text-ink-muted dark:text-gray-400; }
+  .h1 { @apply text-xl font-semibold tracking-tight; }
+  .h2 { @apply text-base font-semibold; }
+  .chip { @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium; }
+  .link { @apply font-medium text-primary hover:underline; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
