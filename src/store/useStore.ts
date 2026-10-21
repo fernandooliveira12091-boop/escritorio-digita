@@ -1,10 +1,11 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
 import { buildMockData } from "../mocks/data";
 import type {
   AccessLog, Agent, BankAccount, Contact, Intimation, LegalProcess, MonitoredTerm, Notification, Partner, Settings, Task, Team, Template, Transaction, User,
 } from "../types";
 import { uid } from "../lib/format";
+import { cloudMode } from "../lib/supabase";
 
 export interface Collections {
   users: User[];
@@ -22,11 +23,17 @@ export interface Collections {
   monitoredTerms: MonitoredTerm[];
   accessLogs: AccessLog[];
 }
-type CollectionKey = keyof Collections;
+export type CollectionKey = keyof Collections;
+export const COLLECTION_KEYS: CollectionKey[] = [
+  "users", "teams", "contacts", "processes", "tasks", "transactions", "accounts", "agents", "templates", "partners", "intimations", "notifications", "monitoredTerms", "accessLogs",
+];
 type Item<K extends CollectionKey> = Collections[K][number];
 
 interface State extends Collections {
   settings: Settings;
+  /** Usuário logado neste aparelho (não é compartilhado com a equipe). */
+  meId: string | null;
+  setMe: (id: string | null) => void;
   upsert: <K extends CollectionKey>(key: K, item: Item<K>) => void;
   remove: <K extends CollectionKey>(key: K, id: string) => void;
   removeMany: <K extends CollectionKey>(key: K, ids: string[]) => void;
@@ -45,6 +52,8 @@ export const useStore = create<State>()(
   persist(
     (set, get) => ({
       ...buildMockData(),
+      meId: null,
+      setMe: (meId) => set({ meId }),
 
       upsert: (key, item) =>
         set((s) => {
@@ -97,14 +106,23 @@ export const useStore = create<State>()(
       log: (action) => {
         const s = get();
         if (!s.settings.accessLogEnabled) return;
-        set({ accessLogs: [{ id: uid("log"), userId: s.settings.currentUserId, at: now(), action }, ...s.accessLogs].slice(0, 500) });
+        set({ accessLogs: [{ id: uid("log"), userId: s.meId ?? s.settings.currentUserId, at: now(), action }, ...s.accessLogs].slice(0, 500) });
       },
 
       resetDemo: () => set({ ...buildMockData() }),
     }),
-    { name: "escritorio-digital-v1", version: 1 },
+    {
+      name: "escritorio-digital-v1",
+      version: 1,
+      // Com login, os dados vêm do servidor e não ficam guardados no navegador.
+      storage: createJSONStorage(() => (cloudMode ? { getItem: () => null, setItem: () => {}, removeItem: () => {} } : localStorage)),
+      partialize: (s) => { const { meId: _me, ...rest } = s; return rest; },
+    },
   ),
 );
 
 /** Usuário logado. */
-export const useCurrentUser = () => useStore((s) => s.users.find((u) => u.id === s.settings.currentUserId) ?? s.users[0]);
+export const useCurrentUser = () =>
+  useStore((s) => s.users.find((u) => u.id === (s.meId ?? s.settings.currentUserId)) ?? s.users[0] ?? FALLBACK_USER);
+
+const FALLBACK_USER: User = { id: "-", name: "Usuário", email: "", role: "Colaborador", pointsGoal: 0, financeAccess: false, active: true, online: true, color: "#2F80ED", createdAt: new Date(0).toISOString() };

@@ -4,6 +4,8 @@ import { useSearchParams } from "react-router-dom";
 import { Avatar, Field, Modal, PageHeader, Tabs, Toggle } from "../components/ui/basics";
 import { DataTable, type Column } from "../components/ui/DataTable";
 import { fmtDate, uid } from "../lib/format";
+import { cloudMode, siteUrl } from "../lib/supabase";
+import { inviteEmail } from "../store/sync";
 import { useUi } from "../store/ui";
 import { useStore } from "../store/useStore";
 import type { Role, User } from "../types";
@@ -66,7 +68,7 @@ function Users() {
   const rows = users.filter((u) => (status === "ativos" ? u.active : !u.active)).filter((u) => !role || u.role === role);
   const columns: Column<User>[] = [
     { key: "name", header: "Nome", sortValue: (u) => u.name, render: (u) => <span className="flex items-center gap-3"><Avatar user={u} size={30} online={u.online} /><span><b className="font-medium">{u.name}</b><span className="muted block text-xs">{u.email}</span></span></span> },
-    { key: "role", header: "Perfil", sortValue: (u) => u.role, render: (u) => u.role },
+    { key: "role", header: "Perfil", sortValue: (u) => u.role, render: (u) => <span>{u.role}{cloudMode && !u.authId && <span className="chip ml-2 bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">Convite pendente</span>}</span> },
     { key: "goal", header: "Meta de pontos", sortValue: (u) => u.pointsGoal, render: (u) => <span className="tabular-nums">{u.pointsGoal}</span> },
     { key: "fin", header: "Acesso financeiro", render: (u) => <span onClick={(e) => e.stopPropagation()}><Toggle checked={u.financeAccess} onChange={(v) => patch("users", u.id, { financeAccess: v })} label={`Acesso financeiro de ${u.name}`} /></span> },
     { key: "created", header: "Cadastro", sortValue: (u) => u.createdAt, render: (u) => <span className="tabular-nums">{fmtDate(u.createdAt)}</span> },
@@ -108,11 +110,22 @@ function Users() {
       {form && (
         <Modal title={users.some((u) => u.id === form.id) ? "Editar usuário" : "Novo usuário"} onClose={() => setForm(null)} footer={
           <><button className="btn" onClick={() => setForm(null)}>Cancelar</button>
-            <button className="btn-primary" onClick={() => { if (!form.name.trim() || !form.email.trim()) return showToast("Informe nome e e-mail"); upsert("users", form); setForm(null); showToast("Usuário salvo"); }}>Salvar</button></>
+            <button className="btn-primary" onClick={async () => {
+              if (!form.name.trim() || !form.email.trim()) return showToast("Informe nome e e-mail");
+              const isNew = !users.some((u) => u.id === form.id);
+              if (cloudMode && isNew && !form.authId) {
+                const { error } = await inviteEmail(form.email);
+                if (error) return showToast("Não foi possível enviar o convite. Tente de novo.");
+              }
+              upsert("users", { ...form, email: form.email.trim().toLowerCase() });
+              setForm(null);
+              showToast(cloudMode && isNew ? `Convite criado. Peça para a pessoa criar a conta com ${form.email.trim()} em ${siteUrl()}` : "Usuário salvo");
+            }}>Salvar</button></>
         }>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Nome" className="sm:col-span-2">{(id) => <input id={id} className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />}</Field>
-            <Field label="E-mail" className="sm:col-span-2">{(id) => <input id={id} type="email" className="input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />}</Field>
+            <Field label="E-mail" className="sm:col-span-2">{(id) => <input id={id} type="email" className="input" disabled={!!form.authId} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />}</Field>
+            {cloudMode && !users.some((u) => u.id === form.id) && <p className="muted text-xs sm:col-span-2">A pessoa recebe acesso ao escritório quando criar a conta com este e-mail na tela de login.</p>}
             <Field label="Perfil">{(id) => <select id={id} className="input" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as Role })}><option>Gestor</option><option>Administrador</option><option>Colaborador</option></select>}</Field>
             <Field label="Meta de pontos">{(id) => <input id={id} type="number" min={0} className="input" value={form.pointsGoal} onChange={(e) => setForm({ ...form, pointsGoal: +e.target.value })} />}</Field>
             <label className="flex items-center gap-2 text-sm"><Toggle checked={form.financeAccess} onChange={(v) => setForm({ ...form, financeAccess: v })} label="Acesso financeiro" /> Acesso financeiro</label>

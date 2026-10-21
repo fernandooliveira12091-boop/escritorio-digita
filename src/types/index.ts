@@ -11,6 +11,8 @@ export interface User {
   online: boolean;
   color: string;
   teamId?: string;
+  /** Conta de login (Supabase) ligada a este usuário. */
+  authId?: string;
   createdAt: string;
 }
 

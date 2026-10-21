@@ -1,6 +1,9 @@
 # Escritório Digital
 
-Sistema de gestão para escritórios de advocacia, em português do Brasil. Funciona sem backend: os dados de exemplo ficam salvos no `localStorage` do navegador.
+Sistema de gestão para escritórios de advocacia, em português do Brasil.
+
+- **Com Supabase configurado** (arquivo `.env`): exige login, e os dados ficam no banco, sincronizados entre aparelhos e colegas.
+- **Sem Supabase** (apague o `.env`): modo demonstração, com dados de exemplo no `localStorage` do navegador.
 
 ## Rodar
 
@@ -53,3 +56,16 @@ Conta e assinatura › Restaurar dados de exemplo.
 O workflow `.github/workflows/deploy.yml` gera o site e publica a cada push na branch `main`.
 Na primeira vez, no GitHub: **Settings › Pages › Build and deployment › Source: GitHub Actions**.
 O endereço fica `https://<seu-usuario>.github.io/<nome-do-repositorio>/`.
+
+## Login e banco de dados (Supabase)
+
+1. No Supabase, abra **SQL Editor › New query**, cole o conteúdo de `supabase/schema.sql` e clique em **Run**.
+2. Em **Authentication › URL Configuration**, coloque o endereço do site em **Site URL** e em **Redirect URLs**.
+3. O `.env` tem a URL do projeto e a chave publicável. A chave secreta (`service_role` / `sb_secret_…`) nunca vai no código.
+
+Como funciona:
+
+- Cada item (tarefa, contato, processo…) é uma linha da tabela `records`, separada por escritório (`workspace_id`).
+- As regras de acesso do banco (RLS) só deixam membros do escritório lerem e gravarem os dados dele.
+- Quem entra pela primeira vez cria o escritório. Colegas são convidados em **Configurações › Usuários** e ganham acesso quando criam a conta com o e-mail convidado.
+- As alterações são enviadas em lote (`src/store/sync.ts`) e chegam aos outros aparelhos em tempo real.

@@ -3,6 +3,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { normalize, relDateTime } from "../../lib/format";
 import { useUi } from "../../store/ui";
+import { cloudMode } from "../../lib/supabase";
+import { signOutAndClear, useSyncStatus } from "../../store/sync";
 import { useCurrentUser, useStore } from "../../store/useStore";
 import { Avatar, Dropdown, MenuItem } from "../ui/basics";
 
@@ -76,6 +78,18 @@ function GlobalSearch() {
   );
 }
 
+function SyncBadge() {
+  const { status, error } = useSyncStatus();
+  if (!cloudMode || status === "idle") return null;
+  const label = status === "saving" ? "Salvando…" : status === "saved" ? "Salvo" : "Sem conexão: tentando de novo";
+  return (
+    <span role="status" title={error} className={`hidden items-center gap-1.5 text-xs md:flex ${status === "error" ? "text-red-600 dark:text-red-400" : "muted"}`}>
+      <span className={`h-2 w-2 rounded-full ${status === "saving" ? "animate-pulse bg-amber-400" : status === "saved" ? "bg-green-500" : "bg-red-500"}`} aria-hidden="true" />
+      {label}
+    </span>
+  );
+}
+
 export function Header() {
   const { theme, toggleTheme, openModal, setMobileNav, showToast } = useUi();
   const user = useCurrentUser();
@@ -88,6 +102,7 @@ export function Header() {
       <button className="btn-icon lg:hidden" onClick={() => setMobileNav(true)} aria-label="Abrir menu"><Menu size={20} /></button>
       <GlobalSearch />
       <div className="ml-auto flex items-center gap-1 sm:gap-2">
+        <SyncBadge />
         <button
           role="switch"
           aria-checked={theme === "dark"}
@@ -153,7 +168,7 @@ export function Header() {
           {(close) => (
             <>
               <MenuItem onClick={() => { navigate("/perfil"); close(); }}><UserIcon size={16} /> Meu perfil</MenuItem>
-              <MenuItem danger onClick={() => { close(); showToast("Sessão encerrada (demonstração)"); }}><LogOut size={16} /> Sair</MenuItem>
+              <MenuItem danger onClick={() => { close(); if (cloudMode) signOutAndClear(); else showToast("Sessão encerrada (demonstração)"); }}><LogOut size={16} /> Sair</MenuItem>
             </>
           )}
         </Dropdown>

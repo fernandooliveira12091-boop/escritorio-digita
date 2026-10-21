@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Avatar, Field, PageHeader } from "../components/ui/basics";
 import { brl, fmtDate } from "../lib/format";
 import { useUi } from "../store/ui";
+import { cloudMode } from "../lib/supabase";
 import { useCurrentUser, useStore } from "../store/useStore";
 
 const PLANS = [
@@ -41,12 +42,12 @@ export function Conta() {
           </div>
         ))}
       </div>
-      <div className="card flex flex-wrap items-center justify-between gap-3">
+      {!cloudMode && <div className="card flex flex-wrap items-center justify-between gap-3">
         <div><p className="font-semibold">Dados de demonstração</p><p className="muted text-sm">Volta todos os registros ao estado inicial. Tudo o que você cadastrou será apagado deste navegador.</p></div>
         <button className={`btn ${confirmReset ? "border-red-600 bg-red-600 text-white" : "text-red-600"}`} onClick={() => (confirmReset ? (resetDemo(), setConfirmReset(false), showToast("Dados restaurados")) : setConfirmReset(true))}>
           <RotateCcw size={16} /> {confirmReset ? "Confirmar: apagar e restaurar" : "Restaurar dados de exemplo"}
         </button>
-      </div>
+      </div>}
     </>
   );
 }
@@ -104,7 +105,8 @@ export function Perfil() {
       <form className="card max-w-xl space-y-4" onSubmit={(e) => { e.preventDefault(); patch("users", user.id, f); showToast("Perfil atualizado"); }}>
         <div className="flex items-center gap-3"><Avatar user={user} size={56} /><div><p className="font-semibold">{user.name}</p><p className="muted text-sm">{user.role}</p></div></div>
         <Field label="Nome">{(id) => <input id={id} className="input" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />}</Field>
-        <Field label="E-mail">{(id) => <input id={id} type="email" className="input" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} />}</Field>
+        <Field label="E-mail">{(id) => <input id={id} type="email" className="input" disabled={cloudMode} value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} />}</Field>
+        {cloudMode && <p className="muted text-xs">O e-mail é o da sua conta de acesso.</p>}
         <button className="btn-primary">Salvar</button>
       </form>
       <p className="muted flex items-center gap-2 text-sm"><LifeBuoy size={16} /> Para trocar de perfil de acesso, fale com um gestor do escritório.</p>
