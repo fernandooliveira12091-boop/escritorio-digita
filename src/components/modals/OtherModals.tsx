@@ -198,8 +198,12 @@ export function TransactionModal({ id, txKind }: { id?: string; txKind?: Transac
   const label = t.kind === "receita" ? "receita" : t.kind === "despesa" ? "despesa" : "transferência";
   const [parcelado, setParcelado] = useState(false);
   const [plan, setPlan] = useState({ count: 6, valueMode: "total" as "total" | "parcela" });
+  const [entry, setEntry] = useState({ on: false, value: 0, date: today, paid: true });
+  const planWithEntry = { ...plan, entry: entry.on && entry.value > 0 ? { value: entry.value, date: entry.date, paid: entry.paid } : undefined };
   const canSplit = !existing && t.kind !== "transferencia";
-  const preview = canSplit && parcelado && t.value > 0 && plan.count >= 2 ? buildInstallments({ ...t, description: t.description || "Lançamento" }, plan) : [];
+  const preview = canSplit && parcelado && t.value > 0 && plan.count >= 2 ? buildInstallments({ ...t, description: t.description || "Lançamento" }, planWithEntry) : [];
+  const entryTx = preview.find((x) => x.installment!.number === 0);
+  const parcels = preview.filter((x) => x.installment!.number > 0);
   const siblings = existing?.installment ? transactions.filter((x) => x.installment?.group === existing.installment!.group) : [];
   const [confirmAll, setConfirmAll] = useState(false);
 
@@ -209,8 +213,11 @@ export function TransactionModal({ id, txKind }: { id?: string; txKind?: Transac
     if (t.kind === "transferencia" && t.accountId === t.toAccountId) return showToast("Escolha contas diferentes");
     if (canSplit && parcelado) {
       if (!(plan.count >= 2)) return showToast("Informe 2 parcelas ou mais");
+      if (entry.on && !(entry.value > 0)) return showToast("Informe o valor da entrada");
+      if (entry.on && !entry.date) return showToast("Informe a data da entrada");
+      if (entry.on && plan.valueMode === "total" && entry.value >= t.value) return showToast("A entrada precisa ser menor que o valor total");
       preview.forEach((p) => upsert("transactions", p));
-      showToast(`${plan.count} parcelas lançadas, de ${fmtDate(preview[0].dueDate)} a ${fmtDate(preview[preview.length - 1].dueDate)}`);
+      showToast(`${entry.on ? "Entrada e " : ""}${parcels.length} parcelas lançadas, de ${fmtDate(parcels[0].dueDate)} a ${fmtDate(parcels[parcels.length - 1].dueDate)}`);
       return closeModal();
     }
     upsert("transactions", { ...t, description: t.description || "Transferência entre contas" });
@@ -252,7 +259,7 @@ export function TransactionModal({ id, txKind }: { id?: string; txKind?: Transac
         )}
         <Field label="Descrição" className="sm:col-span-2">{(i) => <input id={i} className="input" value={t.description} onChange={(e) => set({ description: e.target.value })} placeholder={t.kind === "receita" ? "Ex.: Honorários contratuais - Maria Aparecida" : ""} />}</Field>
         {existing?.installment && (
-          <p className="chip w-fit bg-primary-soft text-primary dark:bg-primary/15 sm:col-span-2">Parcela {existing.installment.number} de {existing.installment.total}. As alterações valem só para esta parcela.</p>
+          <p className="chip w-fit bg-primary-soft text-primary dark:bg-primary/15 sm:col-span-2">{existing.installment.number === 0 ? `Entrada de um parcelamento em ${existing.installment.total}×` : `Parcela ${existing.installment.number} de ${existing.installment.total}`}. As alterações valem só para este lançamento.</p>
         )}
         {canSplit && (
           <div className="sm:col-span-2">
@@ -271,11 +278,23 @@ export function TransactionModal({ id, txKind }: { id?: string; txKind?: Transac
             <Field label="O valor informado é">
               {(i) => (
                 <select id={i} className="input" value={plan.valueMode} onChange={(e) => setPlan({ ...plan, valueMode: e.target.value as "total" | "parcela" })}>
-                  <option value="total">O total (dividir entre as parcelas)</option>
+                  <option value="total">{entry.on ? "O total, já com a entrada" : "O total (dividir entre as parcelas)"}</option>
                   <option value="parcela">De cada parcela</option>
                 </select>
               )}
             </Field>
+            <label className="flex items-center gap-2 text-sm font-medium sm:col-span-2">
+              <input type="checkbox" className="h-4 w-4 accent-primary" checked={entry.on} onChange={(e) => setEntry({ ...entry, on: e.target.checked })} /> Com entrada
+            </label>
+            {entry.on && (
+              <>
+                <Field label="Valor da entrada (R$)">{(i) => <input id={i} type="number" min={0} step="0.01" className="input" value={entry.value || ""} onChange={(e) => setEntry({ ...entry, value: +e.target.value })} />}</Field>
+                <Field label="Data da entrada">{(i) => <input id={i} type="date" className="input" value={entry.date} onChange={(e) => setEntry({ ...entry, date: e.target.value })} />}</Field>
+                <label className="flex items-center gap-2 text-sm sm:col-span-2">
+                  <input type="checkbox" className="h-4 w-4 accent-primary" checked={entry.paid} onChange={(e) => setEntry({ ...entry, paid: e.target.checked })} /> Entrada já {t.kind === "receita" ? "recebida" : "paga"} nessa data
+                </label>
+              </>
+            )}
           </>
         )}
         <Field label={canSplit && parcelado ? (plan.valueMode === "total" ? "Valor total (R$) *" : "Valor de cada parcela (R$) *") : "Valor (R$) *"}>{(i) => <input id={i} type="number" min={0} step="0.01" className="input" value={t.value || ""} onChange={(e) => set({ value: +e.target.value })} />}</Field>
@@ -315,19 +334,23 @@ export function TransactionModal({ id, txKind }: { id?: string; txKind?: Transac
         )}
         <Field label={canSplit && parcelado ? "Vencimento da 1ª parcela" : "Vencimento"}>{(i) => <input id={i} type="date" className="input" value={t.dueDate} onChange={(e) => e.target.value && set({ dueDate: e.target.value, competence: e.target.value.slice(0, 7) })} />}</Field>
         {canSplit && parcelado ? <div /> : <Field label="Competência">{(i) => <input id={i} type="month" className="input" value={t.competence} onChange={(e) => set({ competence: e.target.value })} />}</Field>}
-        {preview.length > 0 && (
+        {parcels.length > 0 && (
           <div className="card space-y-2 sm:col-span-2">
+            {entryTx && <p className="text-sm font-medium">Entrada de {brl(entryTx.value)} em {fmtDate(entryTx.dueDate)}{entryTx.paidDate ? (t.kind === "receita" ? " (já recebida)" : " (já paga)") : ""}</p>}
             <p className="text-sm font-medium">
-              {preview.length}× de {brl(preview[preview.length - 1].value)}{preview[0].value !== preview[preview.length - 1].value ? ` (1ª de ${brl(preview[0].value)})` : ""} · total {brl(preview.reduce((s, p) => s + p.value, 0))}
+              {entryTx ? "+ " : ""}{parcels.length}× de {brl(parcels[parcels.length - 1].value)}{parcels[0].value !== parcels[parcels.length - 1].value ? ` (1ª de ${brl(parcels[0].value)})` : ""} · total {brl(preview.reduce((sum, x) => sum + x.value, 0))}
             </p>
-            <p className="muted text-xs">Cada parcela aparece no mês do seu vencimento, de {fmtDate(preview[0].dueDate)} a {fmtDate(preview[preview.length - 1].dueDate)}.</p>
+            <p className="muted text-xs">Cada lançamento aparece no mês do seu vencimento: {entryTx ? `entrada em ${fmtDate(entryTx.dueDate)}, ` : ""}parcelas de {fmtDate(parcels[0].dueDate)} a {fmtDate(parcels[parcels.length - 1].dueDate)}.</p>
             <div className="flex flex-wrap gap-1.5">
-              {preview.slice(0, 24).map((p) => <span key={p.id} className="chip bg-white tabular-nums dark:bg-white/10">{p.installment!.number}ª · {fmtDate(p.dueDate)}</span>)}
-              {preview.length > 24 && <span className="muted text-xs">+{preview.length - 24}</span>}
+              {entryTx && <span className="chip bg-green-50 tabular-nums text-green-700 dark:bg-green-500/15 dark:text-green-400">Entrada · {fmtDate(entryTx.dueDate)}</span>}
+              {parcels.slice(0, 24).map((x) => <span key={x.id} className="chip bg-white tabular-nums dark:bg-white/10">{x.installment!.number}ª · {fmtDate(x.dueDate)}</span>)}
+              {parcels.length > 24 && <span className="muted text-xs">+{parcels.length - 24}</span>}
             </div>
           </div>
         )}
-        <Field label={canSplit && parcelado ? "1ª parcela já paga em (deixe vazio se não foi paga)" : "Pagamento (deixe vazio se ainda não foi pago)"} className="sm:col-span-2">{(i) => <input id={i} type="date" className="input" value={t.paidDate ?? ""} onChange={(e) => set({ paidDate: e.target.value || undefined })} />}</Field>
+        {!(canSplit && parcelado && entry.on) && (
+          <Field label={canSplit && parcelado ? "1ª parcela já paga em (deixe vazio se não foi paga)" : "Pagamento (deixe vazio se ainda não foi pago)"} className="sm:col-span-2">{(i) => <input id={i} type="date" className="input" value={t.paidDate ?? ""} onChange={(e) => set({ paidDate: e.target.value || undefined })} />}</Field>
+        )}
       </div>
     </Modal>
   );
