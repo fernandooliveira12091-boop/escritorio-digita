@@ -1,6 +1,7 @@
 import { format } from "date-fns";
 import { useState } from "react";
-import { maskCNJ, maskDocument, maskPhone, uid } from "../../lib/format";
+import { brl, fmtDate, maskCNJ, maskDocument, maskPhone, uid } from "../../lib/format";
+import { buildInstallments } from "../../lib/installments";
 import { useCurrentUser, useStore } from "../../store/useStore";
 import { useUi } from "../../store/ui";
 import type { Contact, LegalProcess, Transaction, TransactionKind } from "../../types";
@@ -181,7 +182,7 @@ export function ProcessModal({ id, preset }: { id?: string; preset?: { funnelId?
 }
 
 export function TransactionModal({ id, txKind }: { id?: string; txKind?: TransactionKind }) {
-  const { transactions, accounts, contacts, settings, upsert, remove } = useStore();
+  const { transactions, accounts, contacts, settings, upsert, remove, removeMany } = useStore();
   const { closeModal, showToast } = useUi();
   const existing = transactions.find((t) => t.id === id);
   const kind0 = existing?.kind ?? txKind ?? "receita";
@@ -195,10 +196,23 @@ export function TransactionModal({ id, txKind }: { id?: string; txKind?: Transac
   );
   const set = (x: Partial<Transaction>) => setT((v) => ({ ...v, ...x }));
   const label = t.kind === "receita" ? "receita" : t.kind === "despesa" ? "despesa" : "transferência";
+  const [parcelado, setParcelado] = useState(false);
+  const [plan, setPlan] = useState({ count: 6, valueMode: "total" as "total" | "parcela" });
+  const canSplit = !existing && t.kind !== "transferencia";
+  const preview = canSplit && parcelado && t.value > 0 && plan.count >= 2 ? buildInstallments({ ...t, description: t.description || "Lançamento" }, plan) : [];
+  const siblings = existing?.installment ? transactions.filter((x) => x.installment?.group === existing.installment!.group) : [];
+  const [confirmAll, setConfirmAll] = useState(false);
+
   const save = () => {
     if (!t.description.trim() && t.kind !== "transferencia") return showToast("Informe a descrição");
     if (!(t.value > 0)) return showToast("Informe um valor maior que zero");
     if (t.kind === "transferencia" && t.accountId === t.toAccountId) return showToast("Escolha contas diferentes");
+    if (canSplit && parcelado) {
+      if (!(plan.count >= 2)) return showToast("Informe 2 parcelas ou mais");
+      preview.forEach((p) => upsert("transactions", p));
+      showToast(`${plan.count} parcelas lançadas, de ${fmtDate(preview[0].dueDate)} a ${fmtDate(preview[preview.length - 1].dueDate)}`);
+      return closeModal();
+    }
     upsert("transactions", { ...t, description: t.description || "Transferência entre contas" });
     showToast(existing ? "Lançamento atualizado" : `${label[0].toUpperCase() + label.slice(1)} lançada`);
     closeModal();
@@ -210,6 +224,12 @@ export function TransactionModal({ id, txKind }: { id?: string; txKind?: Transac
       footer={
         <>
           {existing && <DeleteButton onConfirm={() => { remove("transactions", existing.id); closeModal(); showToast("Lançamento excluído"); }} />}
+          {siblings.length > 1 && (
+            <button className={`btn ${confirmAll ? "border-red-600 bg-red-600 text-white" : "text-red-600"}`}
+              onClick={() => (confirmAll ? (removeMany("transactions", siblings.map((x) => x.id)), closeModal(), showToast(`${siblings.length} parcelas excluídas`)) : setConfirmAll(true))}>
+              {confirmAll ? `Confirmar: excluir as ${siblings.length} parcelas` : "Excluir todas as parcelas"}
+            </button>
+          )}
           <button className="btn" onClick={closeModal}>Cancelar</button>
           <button className={t.kind === "despesa" ? "btn border-red-600 bg-red-600 text-white hover:bg-red-700" : t.kind === "receita" ? "btn border-green-600 bg-green-600 text-white hover:bg-green-700" : "btn-primary"} onClick={save}>Salvar</button>
         </>
@@ -230,8 +250,35 @@ export function TransactionModal({ id, txKind }: { id?: string; txKind?: Transac
             )}
           </Field>
         )}
-        <Field label="Descrição" className="sm:col-span-2">{(i) => <input id={i} className="input" value={t.description} onChange={(e) => set({ description: e.target.value })} />}</Field>
-        <Field label="Valor (R$) *">{(i) => <input id={i} type="number" min={0} step="0.01" className="input" value={t.value || ""} onChange={(e) => set({ value: +e.target.value })} />}</Field>
+        <Field label="Descrição" className="sm:col-span-2">{(i) => <input id={i} className="input" value={t.description} onChange={(e) => set({ description: e.target.value })} placeholder={t.kind === "receita" ? "Ex.: Honorários contratuais - Maria Aparecida" : ""} />}</Field>
+        {existing?.installment && (
+          <p className="chip w-fit bg-primary-soft text-primary dark:bg-primary/15 sm:col-span-2">Parcela {existing.installment.number} de {existing.installment.total}. As alterações valem só para esta parcela.</p>
+        )}
+        {canSplit && (
+          <div className="sm:col-span-2">
+            <span className="label">Forma de pagamento</span>
+            <div role="radiogroup" aria-label="Forma de pagamento" className="inline-flex rounded-lg border border-line bg-white p-0.5 dark:border-white/10 dark:bg-[#0F1115]">
+              {[["avista", "À vista"], ["parcelado", "Parcelado"]].map(([k, l]) => (
+                <button key={k} type="button" role="radio" aria-checked={(k === "parcelado") === parcelado} onClick={() => setParcelado(k === "parcelado")}
+                  className={`rounded-md px-3 py-1.5 text-sm font-medium ${(k === "parcelado") === parcelado ? "bg-primary text-white" : "text-ink-muted hover:text-ink dark:text-gray-400"}`}>{l}</button>
+              ))}
+            </div>
+          </div>
+        )}
+        {canSplit && parcelado && (
+          <>
+            <Field label="Número de parcelas">{(i) => <input id={i} type="number" min={2} max={120} className="input" value={plan.count || ""} onChange={(e) => setPlan({ ...plan, count: Math.min(120, +e.target.value) })} />}</Field>
+            <Field label="O valor informado é">
+              {(i) => (
+                <select id={i} className="input" value={plan.valueMode} onChange={(e) => setPlan({ ...plan, valueMode: e.target.value as "total" | "parcela" })}>
+                  <option value="total">O total (dividir entre as parcelas)</option>
+                  <option value="parcela">De cada parcela</option>
+                </select>
+              )}
+            </Field>
+          </>
+        )}
+        <Field label={canSplit && parcelado ? (plan.valueMode === "total" ? "Valor total (R$) *" : "Valor de cada parcela (R$) *") : "Valor (R$) *"}>{(i) => <input id={i} type="number" min={0} step="0.01" className="input" value={t.value || ""} onChange={(e) => set({ value: +e.target.value })} />}</Field>
         {t.kind !== "transferencia" ? (
           <Field label="Categoria">
             {(i) => (
@@ -266,9 +313,21 @@ export function TransactionModal({ id, txKind }: { id?: string; txKind?: Transac
             )}
           </Field>
         )}
-        <Field label="Vencimento">{(i) => <input id={i} type="date" className="input" value={t.dueDate} onChange={(e) => set({ dueDate: e.target.value, competence: t.competence || e.target.value.slice(0, 7) })} />}</Field>
-        <Field label="Competência">{(i) => <input id={i} type="month" className="input" value={t.competence} onChange={(e) => set({ competence: e.target.value })} />}</Field>
-        <Field label="Pagamento (deixe vazio se ainda não foi pago)" className="sm:col-span-2">{(i) => <input id={i} type="date" className="input" value={t.paidDate ?? ""} onChange={(e) => set({ paidDate: e.target.value || undefined })} />}</Field>
+        <Field label={canSplit && parcelado ? "Vencimento da 1ª parcela" : "Vencimento"}>{(i) => <input id={i} type="date" className="input" value={t.dueDate} onChange={(e) => e.target.value && set({ dueDate: e.target.value, competence: e.target.value.slice(0, 7) })} />}</Field>
+        {canSplit && parcelado ? <div /> : <Field label="Competência">{(i) => <input id={i} type="month" className="input" value={t.competence} onChange={(e) => set({ competence: e.target.value })} />}</Field>}
+        {preview.length > 0 && (
+          <div className="card space-y-2 sm:col-span-2">
+            <p className="text-sm font-medium">
+              {preview.length}× de {brl(preview[preview.length - 1].value)}{preview[0].value !== preview[preview.length - 1].value ? ` (1ª de ${brl(preview[0].value)})` : ""} · total {brl(preview.reduce((s, p) => s + p.value, 0))}
+            </p>
+            <p className="muted text-xs">Cada parcela aparece no mês do seu vencimento, de {fmtDate(preview[0].dueDate)} a {fmtDate(preview[preview.length - 1].dueDate)}.</p>
+            <div className="flex flex-wrap gap-1.5">
+              {preview.slice(0, 24).map((p) => <span key={p.id} className="chip bg-white tabular-nums dark:bg-white/10">{p.installment!.number}ª · {fmtDate(p.dueDate)}</span>)}
+              {preview.length > 24 && <span className="muted text-xs">+{preview.length - 24}</span>}
+            </div>
+          </div>
+        )}
+        <Field label={canSplit && parcelado ? "1ª parcela já paga em (deixe vazio se não foi paga)" : "Pagamento (deixe vazio se ainda não foi pago)"} className="sm:col-span-2">{(i) => <input id={i} type="date" className="input" value={t.paidDate ?? ""} onChange={(e) => set({ paidDate: e.target.value || undefined })} />}</Field>
       </div>
     </Modal>
   );

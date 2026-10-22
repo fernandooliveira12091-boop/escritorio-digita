@@ -119,6 +119,8 @@ export interface Transaction {
   toAccountId?: string;
   contactId?: string;
   processId?: string;
+  /** Parcelamento: todas as parcelas de um mesmo lançamento têm o mesmo group. */
+  installment?: { group: string; number: number; total: number };
 }
 
 export interface BankAccount {
