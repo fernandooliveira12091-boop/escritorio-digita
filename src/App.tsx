@@ -5,7 +5,7 @@ import Agenda from "./pages/Agenda";
 import Atividades from "./pages/Atividades";
 import Configuracoes from "./pages/Configuracoes";
 import Contatos from "./pages/Contatos";
-import { Conta, Indicar, Perfil, Suporte } from "./pages/Conta";
+import { Perfil, Suporte } from "./pages/Conta";
 import Crm from "./pages/Crm";
 import Financeiro from "./pages/Financeiro";
 import Home from "./pages/Home";
@@ -40,9 +40,7 @@ export default function App() {
             <Route path="/financeiro" element={<Financeiro />} />
             <Route path="/relatorios" element={<Relatorios />} />
             <Route path="/configuracoes" element={<Configuracoes />} />
-            <Route path="/conta" element={<Conta />} />
             <Route path="/suporte" element={<Suporte />} />
-            <Route path="/indicar" element={<Indicar />} />
             <Route path="/perfil" element={<Perfil />} />
             <Route path="*" element={<Navigate to="/home" replace />} />
           </Route>

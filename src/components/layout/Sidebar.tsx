@@ -1,5 +1,5 @@
 import {
-  BarChart3, Bot, Briefcase, Calendar, CheckSquare, CreditCard, Gift, Handshake, Home, LifeBuoy, PanelLeftClose, PanelLeftOpen, Scale, Settings, Users, Wallet, Bell, X,
+  BarChart3, Bot, Briefcase, Calendar, CheckSquare, Handshake, Home, LifeBuoy, PanelLeftClose, PanelLeftOpen, Scale, Settings, Users, Wallet, Bell, X,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { BrandLogo } from "../ui/Brand";
@@ -20,9 +20,7 @@ const MAIN = [
 ];
 const SECONDARY = [
   { to: "/configuracoes", label: "Configurações", icon: Settings },
-  { to: "/conta", label: "Conta e assinatura", icon: CreditCard },
   { to: "/suporte", label: "Suporte", icon: LifeBuoy },
-  { to: "/indicar", label: "Indicar o Escritório Digital", icon: Gift },
 ];
 
 function Logo({ collapsed }: { collapsed: boolean }) {
