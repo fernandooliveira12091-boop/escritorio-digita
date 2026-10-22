@@ -1,7 +1,6 @@
-import { differenceInCalendarDays } from "date-fns";
-import { MessageCircle, Phone, Rocket, Send, X } from "lucide-react";
+import { MessageCircle, Send, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { useUi } from "../../store/ui";
 import { useStore } from "../../store/useStore";
 import { ModalHost } from "../modals/ModalHost";
@@ -18,7 +17,7 @@ function ChatWidget() {
     setText("");
   };
   return (
-    <div className="fixed bottom-[calc(72px+env(safe-area-inset-bottom))] right-4 z-40 flex flex-col items-end gap-3">
+    <div className="fixed bottom-[calc(16px+env(safe-area-inset-bottom))] right-4 z-40 flex flex-col items-end gap-3">
       {open && (
         <div role="dialog" aria-label="Chat com o suporte" className="surface flex h-96 w-[min(320px,calc(100vw-32px))] flex-col shadow-xl">
           <div className="flex items-center justify-between border-b border-line px-4 py-3 dark:border-white/10">
@@ -44,28 +43,11 @@ function ChatWidget() {
   );
 }
 
-function Footer() {
-  const trialEndsAt = useStore((s) => s.settings.trialEndsAt);
-  const navigate = useNavigate();
-  const showToast = useUi((s) => s.showToast);
-  const left = Math.max(0, differenceInCalendarDays(new Date(trialEndsAt), new Date()));
-  return (
-    <footer className="fixed bottom-0 left-0 right-0 z-30 flex items-center gap-2 border-t border-line bg-white px-4 py-2.5 pb-[calc(10px+env(safe-area-inset-bottom))] dark:border-white/10 dark:bg-[#12151B] lg:left-[var(--sidebar-w)]">
-      <button className="btn border-ink bg-ink text-white hover:bg-black dark:border-white dark:bg-white dark:text-ink" onClick={() => navigate("/conta")}>
-        <Rocket size={16} /> Restam {left} {left === 1 ? "dia" : "dias"} - Contratar
-      </button>
-      <button className="btn" onClick={() => showToast("Um consultor vai ligar para você em breve")}>
-        <Phone size={16} /> <span className="hidden sm:inline">Falar com consultor</span><span className="sm:hidden">Consultor</span>
-      </button>
-    </footer>
-  );
-}
-
 function Toast() {
   const toast = useUi((s) => s.toast);
   if (!toast) return null;
   return (
-    <div role="status" className="fixed bottom-[calc(80px+env(safe-area-inset-bottom))] left-1/2 z-[60] -translate-x-1/2 rounded-lg bg-ink px-4 py-2.5 text-sm font-medium text-white shadow-lg dark:bg-white dark:text-ink">
+    <div role="status" className="fixed bottom-[calc(24px+env(safe-area-inset-bottom))] left-1/2 z-[60] -translate-x-1/2 rounded-lg bg-ink px-4 py-2.5 text-sm font-medium text-white shadow-lg dark:bg-white dark:text-ink">
       {toast}
     </div>
   );
@@ -90,11 +72,10 @@ export function Layout() {
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <Header />
-        <main id="conteudo" className="mx-auto w-full max-w-[1400px] flex-1 space-y-6 px-4 pb-32 pt-6 sm:px-6">
+        <main id="conteudo" className="mx-auto w-full max-w-[1400px] flex-1 space-y-6 px-4 pb-24 pt-6 sm:px-6">
           <Outlet />
         </main>
       </div>
-      <Footer />
       <ChatWidget />
       <ModalHost />
       <Toast />
