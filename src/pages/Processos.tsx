@@ -77,7 +77,7 @@ export default function Processos() {
   const volume = phases.map((f) => ({ name: f.name, value: processes.filter((p) => p.funnelId === f.id && p.status !== "arquivado").length }));
 
   const columns: Column<LegalProcess>[] = [
-    { key: "parties", header: "Partes", sortValue: name, render: (p) => <span><b className="font-medium">{name(p)}</b><span className="muted block text-xs">x {p.opposingParty || "—"}</span></span> },
+    { key: "parties", header: "Partes", sortValue: name, render: (p) => <span><b className="font-medium">{p.needsReview && !p.contactIds.length ? "Cliente não vinculado" : name(p)}</b>{p.needsReview && <span className="chip ml-2 bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">A revisar</span>}<span className="muted block text-xs">x {p.opposingParty || "—"}</span></span> },
     { key: "type", header: "Tipo de ação", sortValue: typeName, render: typeName },
     { key: "number", header: "Número do processo", sortValue: (p) => p.number, render: (p) => <span className="whitespace-nowrap tabular-nums">{p.number || "—"}</span> },
     { key: "createdAt", header: "Data cadastro", sortValue: (p) => p.createdAt, render: (p) => <span className="tabular-nums">{fmtDate(p.createdAt)}</span> },

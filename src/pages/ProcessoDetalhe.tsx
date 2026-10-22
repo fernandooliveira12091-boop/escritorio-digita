@@ -1,10 +1,12 @@
-import { ArrowLeft, FileText, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, FileText, Loader2, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { StatusDot } from "../components/tasks";
 import { Avatar, EmptyState, PageHeader, Tabs } from "../components/ui/basics";
 import { brl, fmtDate, fmtDateTime, relDateTime, uid } from "../lib/format";
 import { daysWithoutMovement, isLatePayment, isStagnant } from "../lib/rules";
+import { cloudMode } from "../lib/supabase";
+import { atualizarAndamentos } from "../lib/tribunais";
 import { useUi } from "../store/ui";
 import { useStore } from "../store/useStore";
 
@@ -19,6 +21,7 @@ export default function ProcessoDetalhe() {
   const [tab, setTab] = useState<Tab>(["andamentos", "tarefas", "documentos", "financeiro", "historico"].includes(hashTab) ? hashTab : "dados");
   const [movement, setMovement] = useState("");
   const [docName, setDocName] = useState("");
+  const [fetching, setFetching] = useState(false);
   const p = processes.find((x) => x.id === id);
   if (!p) return <EmptyState action={<Link className="link" to="/processos">Voltar para Processos</Link>}>Processo não encontrado.</EmptyState>;
 
@@ -33,6 +36,9 @@ export default function ProcessoDetalhe() {
   const info: [string, ReactNode][] = [
     ["Número (CNJ)", <span className="tabular-nums">{p.number || "—"}</span>],
     ["Tribunal", p.court],
+    ["Classe (tribunal)", p.className ?? "—"],
+    ["Órgão julgador", p.orgao ?? "—"],
+    ["Andamentos capturados", p.capturedAt ? `${fmtDateTime(p.capturedAt)}${p.datajudFound === false ? " (não encontrado no DataJud)" : ""}` : "Nunca"],
     ["Grupo de ação", settings.actionGroups.find((g) => g.id === p.actionGroupId)?.name],
     ["Tipo de ação", settings.actionTypes.find((t) => t.id === p.actionTypeId)?.name],
     ["Fase / etapa", `${funnel?.name} › ${stage?.name}`],
@@ -62,6 +68,12 @@ export default function ProcessoDetalhe() {
         {isStagnant(p) && <span className="chip bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">Estagnado há {daysWithoutMovement(p)} dias</span>}
         {resp && <span className="chip bg-card dark:bg-white/10"><Avatar user={resp} size={18} /> {resp.name}</span>}
       </div>
+      {p.needsReview && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+          <span className="flex-1">Este processo foi cadastrado automaticamente a partir de uma intimação do DJEN. Vincule o cliente e confira o tipo de ação.</span>
+          <button className="btn" onClick={() => openModal({ kind: "process", id: p.id })}>Completar cadastro</button>
+        </div>
+      )}
       <Tabs value={tab} onChange={(t) => { setTab(t); if (t === "historico") patch("processes", p.id, { unreadHistory: false }); }} tabs={[
         { id: "dados", label: "Dados e partes" }, { id: "andamentos", label: `Andamentos (${p.movements.length})` }, { id: "tarefas", label: `Tarefas (${pTasks.length})` },
         { id: "documentos", label: `Documentos (${p.documents.length})` }, { id: "financeiro", label: "Financeiro" }, { id: "historico", label: "Histórico" },
@@ -96,7 +108,19 @@ export default function ProcessoDetalhe() {
             <label className="sr-only" htmlFor="mov">Novo andamento</label>
             <input id="mov" className="input flex-1" placeholder="Registrar novo andamento" value={movement} onChange={(e) => setMovement(e.target.value)} />
             <button className="btn-primary">Adicionar</button>
+            {cloudMode && (
+              <button type="button" className="btn" disabled={fetching} onClick={async () => {
+                setFetching(true);
+                try {
+                  const r = await atualizarAndamentos([p.id]);
+                  showToast(r.datajud.erros.length ? `Erro no DataJud: ${r.datajud.erros[0]}` : r.datajud.naoEncontrados.length ? "Processo não encontrado no DataJud (pode levar alguns dias para aparecer)" : r.datajud.atualizados ? "Andamentos novos encontrados" : "Nenhum andamento novo");
+                } catch (e) { showToast((e as Error).message); } finally { setFetching(false); }
+              }}>
+                {fetching ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} Buscar no DataJud
+              </button>
+            )}
           </form>
+          {p.capturedAt && <p className="muted text-xs">Andamentos do DataJud (CNJ), consultado {relDateTime(p.capturedAt)}. Os dados podem ter alguns dias de atraso em relação ao sistema do tribunal.</p>}
           <ol className="relative space-y-4 border-l-2 border-line pl-5 dark:border-white/10">
             {movements.map((m) => (
               <li key={m.id} className="relative">

@@ -2,7 +2,7 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import { create } from "zustand";
 import { uid } from "../lib/format";
 import { supabase } from "../lib/supabase";
-import { buildMockData } from "../mocks/data";
+import { buildMockData, DEFAULT_OAB } from "../mocks/data";
 import type { Settings, User } from "../types";
 import { COLLECTION_KEYS, useStore, type CollectionKey, type Collections } from "./useStore";
 
@@ -110,6 +110,7 @@ export function initialData(withExamples: boolean, me: { name: string; email: st
     accounts: mock.accounts.map((a) => ({ ...a, initialBalance: 0 })),
     agents: mock.agents,
     templates: mock.templates,
+    monitoredTerms: [DEFAULT_OAB()],
     settings: { ...mock.settings, currentUserId: meUser.id, trialEndsAt: mock.settings.trialEndsAt } as Settings,
   };
 }
@@ -210,6 +211,9 @@ export async function signOutAndClear() {
   applyRemote(() => useStore.setState({ ...emptyCollections(), meId: null }));
   await supabase?.auth.signOut();
 }
+
+/** Escritório conectado agora (vazio no modo demonstração). */
+export const currentWorkspaceId = () => workspaceId;
 
 /** Convida um e-mail para o escritório atual. */
 export async function inviteEmail(email: string) {

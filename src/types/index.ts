@@ -65,6 +65,12 @@ export interface LegalProcess {
   value: number;
   status: ProcessStatus;
   outcome?: "ganho" | "perdido";
+  /** Cadastrado automaticamente (DJEN) e ainda sem cliente vinculado. */
+  needsReview?: boolean;
+  className?: string;
+  orgao?: string;
+  /** Resultado da última consulta ao DataJud. */
+  datajudFound?: boolean;
   createdAt: string;
   closedAt?: string; // fechamento (contrato assinado)
   filedAt?: string; // ajuizamento
@@ -156,12 +162,22 @@ export interface Intimation {
   text: string;
   responsibleId?: string;
   status: "nova" | "lida" | "tratada";
+  source?: "djen" | "demo";
+  oab?: string;
+  orgao?: string;
+  tipo?: string;
+  link?: string;
 }
 
 export interface MonitoredTerm {
   id: string;
   term: string;
   kind: "OAB" | "Nome";
+  oabUf?: string;
+  oabNumber?: string;
+  lastSyncAt?: string;
+  lastCount?: number;
+  lastError?: string | null;
   createdAt: string;
 }
 

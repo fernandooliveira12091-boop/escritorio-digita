@@ -79,7 +79,7 @@ export function ProcessModal({ id, preset }: { id?: string; preset?: { funnelId?
   const funnel = settings.funnels.find((f) => f.id === p.funnelId);
   const save = () => {
     if (!p.contactIds.length) return showToast("Escolha o cliente");
-    upsert("processes", p);
+    upsert("processes", { ...p, needsReview: p.contactIds.length ? false : p.needsReview });
     showToast(existing ? "Processo atualizado" : "Processo cadastrado");
     closeModal();
   };

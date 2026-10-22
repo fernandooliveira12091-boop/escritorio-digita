@@ -1,6 +1,6 @@
 import { addDays, addMonths, format, setHours, setMinutes, startOfMonth, subDays, subMonths } from "date-fns";
 import type {
-  Agent, BankAccount, Contact, Funnel, Intimation, LegalProcess, Notification, Partner, Settings, Task, Team, Template, Transaction, User,
+  Agent, BankAccount, Contact, Funnel, Intimation, LegalProcess, MonitoredTerm, Notification, Partner, Settings, Task, Team, Template, Transaction, User,
 } from "../types";
 
 // Gerador determinístico, para os dados de exemplo serem sempre os mesmos.
@@ -297,8 +297,11 @@ export function buildMockData(now = new Date()) {
     inbox: "",
   };
 
-  return { users, teams, contacts, processes, tasks, transactions, accounts, agents, templates, partners, intimations, notifications, settings, monitoredTerms: [], accessLogs: [] };
+  return { users, teams, contacts, processes, tasks, transactions, accounts, agents, templates, partners, intimations, notifications, settings, monitoredTerms: [DEFAULT_OAB()], accessLogs: [] };
 }
+
+/** OAB monitorada por padrão nas intimações. */
+export const DEFAULT_OAB = (): MonitoredTerm => ({ id: "oab_df_70620", term: "OAB/DF 70.620", kind: "OAB", oabUf: "DF", oabNumber: "70620", createdAt: new Date().toISOString() });
 
 export const PUBLIC_LIBRARY: Template[] = [
   ["Notificação extrajudicial", "Cível"], ["Contestação - modelo base", "Cível"], ["Petição inicial - danos morais", "Responsabilidade civil"],

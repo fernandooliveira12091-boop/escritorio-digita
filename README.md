@@ -69,3 +69,19 @@ Como funciona:
 - As regras de acesso do banco (RLS) só deixam membros do escritório lerem e gravarem os dados dele.
 - Quem entra pela primeira vez cria o escritório. Colegas são convidados em **Configurações › Usuários** e ganham acesso quando criam a conta com o e-mail convidado.
 - As alterações são enviadas em lote (`src/store/sync.ts`) e chegam aos outros aparelhos em tempo real.
+
+## Busca nos tribunais (DJEN e DataJud)
+
+A função `supabase/functions/tribunais` roda no Supabase:
+
+- **DJEN (Comunica PJe/CNJ)**: busca as publicações das OABs monitoradas (Intimações › Cadastrar OAB) e grava como intimações. Processo que ainda não existe no sistema é cadastrado com a marca "A revisar".
+- **DataJud (API Pública do CNJ)**: traz classe, órgão julgador e movimentações pelo número do processo. O tribunal é identificado pelo próprio número CNJ (TJDFT, TJMA, TRF1, TRTs…).
+- Roda sozinha às 7h e às 16h (pg_cron) e também pelo botão "Buscar agora".
+
+Instalação:
+
+1. Supabase › **Edge Functions** › **Deploy a new function** › **Via Editor**, nome `tribunais`, cole `supabase/functions/tribunais/index.ts` e publique. Nos detalhes da função, desligue **Enforce JWT verification** (a função confere o login sozinha).
+2. **Edge Functions › Secrets**: crie `CRON_SECRET` com um valor aleatório.
+3. **SQL Editor**: rode `supabase/tribunais.sql` trocando `COLE_AQUI_O_SEGREDO` pelo mesmo valor.
+
+Se o CNJ trocar a chave pública do DataJud, crie o secret `DATAJUD_API_KEY` com a nova.
