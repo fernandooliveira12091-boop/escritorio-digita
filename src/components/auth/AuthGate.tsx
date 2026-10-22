@@ -28,8 +28,8 @@ function Shell({ children }: { children: ReactNode }) {
   return (
     <main className="flex min-h-full items-center justify-center bg-card px-4 py-10 dark:bg-[#0F1115]">
       <div className="w-full max-w-sm space-y-6">
-        <div className="flex flex-col items-center gap-2">
-          <BrandLogo className="w-full max-w-[260px] px-4 py-3 shadow-sm" />
+        <div className="flex flex-col items-center gap-4">
+          <BrandLogo className="w-full max-w-[240px]" />
           <span className="muted text-xs font-medium uppercase tracking-[0.2em]">Escritório Digital</span>
         </div>
         <div className="surface space-y-5 p-6 shadow-sm">{children}</div>

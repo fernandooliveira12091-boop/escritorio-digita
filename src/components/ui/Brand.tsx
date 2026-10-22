@@ -1,17 +1,17 @@
 const base = import.meta.env.BASE_URL;
 
 /**
- * Logo do escritório. Fica sobre uma placa branca porque o azul-marinho da marca
- * some sobre o fundo escuro do modo noturno.
+ * Logo do escritório, sem fundo. No modo escuro usa a versão em que o azul-marinho
+ * vira branco (o dourado fica igual), para o nome continuar legível.
  */
 export function BrandLogo({ variant = "full", className = "" }: { variant?: "full" | "mono"; className?: string }) {
+  const file = variant === "full" ? "logo" : "logo-mono";
+  const size = variant === "full" ? "h-auto w-full" : "h-8 w-auto";
+  const alt = "Fernando Oliveira Advocacia e Consultoria Jurídica";
   return (
-    <span className={`inline-flex items-center justify-center rounded-lg bg-white ${variant === "full" ? "px-3 py-2" : "p-1"} ${className}`}>
-      <img
-        src={`${base}${variant === "full" ? "logo.png" : "logo-mono.png"}`}
-        alt="Fernando Oliveira Advocacia e Consultoria Jurídica"
-        className={variant === "full" ? "h-auto w-full" : "h-7 w-auto"}
-      />
+    <span className={`inline-flex items-center justify-center ${className}`}>
+      <img src={`${base}${file}.png`} alt={alt} className={`${size} dark:hidden`} />
+      <img src={`${base}${file}-dark.png`} alt={alt} className={`${size} hidden dark:block`} />
     </span>
   );
 }
