@@ -1,6 +1,7 @@
-import { CheckCircle2, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { CalendarPlus, CheckCircle2, Pencil, RotateCcw, Trash2 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { googleCalendarLink } from "../../lib/calendar";
 import { fmtDateTime } from "../../lib/format";
 import { STATE_LABEL, taskState } from "../../lib/rules";
 import { useStore } from "../../store/useStore";
@@ -26,6 +27,13 @@ export function TaskDetail({ taskId }: { taskId: string }) {
     ["Pontuação", `${t.points} pontos`],
     ["Concluída em", fmtDateTime(t.completedAt)],
   ];
+  const gDetails = [
+    settings.taskTypes.find((x) => x.id === t.typeId)?.name,
+    parties(t) && `Partes: ${parties(t)}`,
+    proc && `Processo: ${proc.number}${proc.court ? ` (${proc.court})` : ""}`,
+    t.deadline && `Prazo fatal: ${fmtDateTime(t.deadline)}`,
+    t.description,
+  ].filter(Boolean).join("\n");
   return (
     <Modal
       title={t.title}
@@ -61,6 +69,16 @@ export function TaskDetail({ taskId }: { taskId: string }) {
           </dd>
         </dl>
         {t.description && <p className="card whitespace-pre-wrap text-sm">{t.description}</p>}
+        <div className="flex flex-wrap gap-2 border-t border-line pt-4 dark:border-white/10">
+          <a className="btn" target="_blank" rel="noreferrer" href={googleCalendarLink({ title: `${t.title}${parties(t) ? ` - ${parties(t)}` : ""}`, start: t.date, details: gDetails })}>
+            <CalendarPlus size={16} /> Adicionar ao Google Agenda
+          </a>
+          {t.deadline && (
+            <a className="btn" target="_blank" rel="noreferrer" href={googleCalendarLink({ title: `PRAZO FATAL: ${t.title}${parties(t) ? ` - ${parties(t)}` : ""}`, start: t.deadline, allDay: true, details: gDetails })}>
+              <CalendarPlus size={16} /> Prazo fatal no Google Agenda
+            </a>
+          )}
+        </div>
       </div>
     </Modal>
   );

@@ -1,7 +1,8 @@
 import { addDays, addMonths, addWeeks, format, isSameDay, isSameMonth, setHours, startOfDay, startOfMonth, startOfWeek, subDays, subMonths, subWeeks } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarPlus, ChevronLeft, ChevronRight } from "lucide-react";
 import { useMemo, useState } from "react";
+import { GoogleCalendarModal } from "../components/GoogleCalendarModal";
 import { STATE_STYLE } from "../components/tasks";
 import { PageHeader, Segmented } from "../components/ui/basics";
 import { UserChipSelect } from "../components/ui/UserChipSelect";
@@ -36,6 +37,7 @@ export default function Agenda() {
   const [resp, setResp] = useState<string[]>([]);
   const [field, setField] = useState<"date" | "deadline">("date");
   const [showDone, setShowDone] = useState(true);
+  const [googleOpen, setGoogleOpen] = useState(false);
 
   const visible = useMemo(
     () => tasks.filter((t) => (field === "deadline" ? !!t.deadline : true))
@@ -53,7 +55,12 @@ export default function Agenda() {
 
   return (
     <>
-      <PageHeader title="Agenda" subtitle="Clique em um dia para criar uma tarefa, ou em um compromisso para ver os detalhes." />
+      <PageHeader
+        title="Agenda"
+        subtitle="Clique em um dia para criar uma tarefa, ou em um compromisso para ver os detalhes."
+        actions={<button className="btn" onClick={() => setGoogleOpen(true)}><CalendarPlus size={16} /> Google Agenda</button>}
+      />
+      {googleOpen && <GoogleCalendarModal onClose={() => setGoogleOpen(false)} />}
       <div className="card flex flex-wrap items-center gap-x-6 gap-y-3">
         <Segmented label="Visão" value={view} onChange={setView} options={[{ id: "mes", label: "Mês" }, { id: "dia", label: "Dia" }, { id: "semana", label: "Semana" }]} />
         <UserChipSelect users={users} value={resp} onChange={setResp} />

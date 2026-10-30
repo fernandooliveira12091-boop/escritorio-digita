@@ -85,3 +85,10 @@ Instalação:
 3. **SQL Editor**: rode `supabase/tribunais.sql` trocando `COLE_AQUI_O_SEGREDO` pelo mesmo valor.
 
 Se o CNJ trocar a chave pública do DataJud, crie o secret `DATAJUD_API_KEY` com a nova.
+
+## Google Agenda
+
+- **Assinatura (.ics)**: Agenda › Google Agenda gera um endereço pessoal que se cola no Google Agenda (Outras agendas › Do URL). Mostra compromissos (1 hora) e prazos fatais (dia inteiro), só os seus ou do escritório todo. O Google atualiza essas agendas a cada algumas horas.
+- **Botão "Adicionar ao Google Agenda"**: dentro de cada compromisso, abre o Google Agenda com o evento preenchido.
+
+Instalação: publique a função `supabase/functions/agenda` (nome `agenda`, com **Enforce JWT verification** desligado, porque o Google acessa sem login) e rode `supabase/agenda.sql` no SQL Editor.
