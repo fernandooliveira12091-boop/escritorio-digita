@@ -92,3 +92,7 @@ Se o CNJ trocar a chave pública do DataJud, crie o secret `DATAJUD_API_KEY` com
 - **Botão "Adicionar ao Google Agenda"**: dentro de cada compromisso, abre o Google Agenda com o evento preenchido.
 
 Instalação: publique a função `supabase/functions/agenda` (nome `agenda`, com **Enforce JWT verification** desligado, porque o Google acessa sem login) e rode `supabase/agenda.sql` no SQL Editor.
+
+## Configuração automática do Supabase (GitHub Actions)
+
+O workflow `.github/workflows/supabase.yml` roda os scripts do banco e publica as funções `tribunais` e `agenda` sempre que algo muda em `supabase/` (ou pelo botão **Run workflow**). Ele precisa dos segredos do repositório `SUPABASE_ACCESS_TOKEN` (token da conta Supabase) e `CRON_SECRET` (senha do agendamento).
