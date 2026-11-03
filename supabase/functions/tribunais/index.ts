@@ -143,6 +143,7 @@ async function syncDjen(ws: string, days = 30) {
         if (it.ativo === false || it.data_cancelamento) continue;
         known.add(id);
         const parties = partiesOf(it);
+        const partiesList = (it.destinatarios ?? []).filter((d: any) => d?.nome).map((d: any) => ({ nome: String(d.nome).trim(), polo: d.polo ?? "" }));
         const raw = it.numeroprocessocommascara ?? it.numero_processo ?? it.numeroProcesso ?? "";
         const number = maskCNJ(String(raw));
         let proc = byNumber.get(digits(number));
@@ -153,6 +154,7 @@ async function syncDjen(ws: string, days = 30) {
             status: "ativo", createdAt: nowIso(), movements: [], documents: [], unreadHistory: true, needsReview: true,
             className: it.nomeClasse ?? undefined, orgao: it.nomeOrgao ?? undefined,
             parties: parties || undefined,
+            partiesList: partiesList.length ? partiesList : undefined,
             history: [{ id: `h_${Date.now()}_${novas}`, date: nowIso(), text: `Cadastrado automaticamente a partir de publicação no DJEN (OAB ${term.oabUf} ${term.oabNumber})${parties ? `. Partes: ${parties}` : ""}` }],
           };
           byNumber.set(digits(number), proc);
@@ -162,7 +164,7 @@ async function syncDjen(ws: string, days = 30) {
         newIntimations.push({
           id, processId: proc?.id, number, court: it.siglaTribunal ?? "", publishedAt: new Date(`${String(published).slice(0, 10)}T12:00:00-03:00`).toISOString(),
           text: stripHtml(it.texto ?? ""), responsibleId: proc?.responsibleId ?? owner?.id, status: "nova", source: "djen",
-          oab: `${term.oabUf} ${term.oabNumber}`, orgao: it.nomeOrgao ?? "", link: it.link ?? "", partes: parties,
+          oab: `${term.oabUf} ${term.oabNumber}`, orgao: it.nomeOrgao ?? "", link: it.link ?? "", partes: parties, partesList: partiesList,
           tipo: [it.tipoComunicacao, it.tipoDocumento].filter(Boolean).join(" · "), className: it.nomeClasse ?? "",
         });
         novas++;

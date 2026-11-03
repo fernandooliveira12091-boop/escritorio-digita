@@ -36,6 +36,12 @@ export interface Contact {
   createdAt: string;
 }
 
+/** Parte de um processo informada pelo tribunal (polo A = ativo, P = passivo). */
+export interface Party {
+  nome: string;
+  polo: string;
+}
+
 export interface Movement {
   id: string;
   date: string;
@@ -71,6 +77,7 @@ export interface LegalProcess {
   orgao?: string;
   /** Partes informadas pelo DJEN, para ajudar a revisar processos cadastrados automaticamente. */
   parties?: string;
+  partiesList?: Party[];
   /** Resultado da última consulta ao DataJud. */
   datajudFound?: boolean;
   createdAt: string;
@@ -173,6 +180,7 @@ export interface Intimation {
   link?: string;
   /** Partes da comunicação (destinatários), ex.: "Fulano x Empresa S.A.". */
   partes?: string;
+  partesList?: Party[];
   className?: string;
 }
 

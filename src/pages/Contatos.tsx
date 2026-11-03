@@ -1,5 +1,5 @@
 import { differenceInYears, format } from "date-fns";
-import { Cake, ChevronDown, ChevronRight, MessageCircle } from "lucide-react";
+import { Cake, ChevronDown, ChevronRight, MessageCircle, UserPlus } from "lucide-react";
 import { Fragment, useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Field, PageHeader } from "../components/ui/basics";
@@ -9,6 +9,7 @@ import { PALETTE, useChartTheme } from "../components/ui/chart";
 import { exportCsv } from "../lib/files";
 import { fmtDate, normalize, waLink } from "../lib/format";
 import { compare, inMonth } from "../lib/rules";
+import { ImportClientsModal, processesWithoutClient } from "../components/ImportClientsModal";
 import { useUi } from "../store/ui";
 import { useStore } from "../store/useStore";
 import type { Contact } from "../types";
@@ -42,6 +43,8 @@ const top = (values: string[], n = 5) =>
 export default function Contatos() {
   const { contacts, processes, settings } = useStore();
   const openModal = useUi((s) => s.openModal);
+  const [importOpen, setImportOpen] = useState(false);
+  const semCliente = processesWithoutClient(processes).length;
   const [search, setSearch] = useState("");
   const [kpi, setKpi] = useState<"" | "com" | "sem">("");
   const [birthdays, setBirthdays] = useState(false);
@@ -92,6 +95,7 @@ export default function Contatos() {
       </div>
       <DataTableToolbar
         primary={{ label: "Novo contato", onClick: () => openModal({ kind: "contact" }) }}
+        extra={<button className="btn" onClick={() => setImportOpen(true)}><UserPlus size={16} /> Importar dos processos{semCliente > 0 && <span className="chip bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">{semCliente}</span>}</button>}
         search={search}
         onSearch={setSearch}
         filterCount={(origin ? 1 : 0) + (city ? 1 : 0)}
@@ -170,6 +174,7 @@ export default function Contatos() {
           <span className="muted tabular-nums">{rows.length ? 1 : 0}-{Math.min(pageSize, rows.length)} de {rows.length}</span>
         </div>
       </div>
+      {importOpen && <ImportClientsModal onClose={() => setImportOpen(false)} />}
     </>
   );
 }

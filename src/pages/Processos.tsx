@@ -1,3 +1,4 @@
+import { UserPlus } from "lucide-react";
 import { differenceInCalendarDays, isToday } from "date-fns";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -9,6 +10,7 @@ import { useChartTheme } from "../components/ui/chart";
 import { exportCsv } from "../lib/files";
 import { fmtDate, normalize, toDate } from "../lib/format";
 import { compare, inMonth, lastMovementDate } from "../lib/rules";
+import { ImportClientsModal, processesWithoutClient } from "../components/ImportClientsModal";
 import { useUi } from "../store/ui";
 import { useStore } from "../store/useStore";
 import type { LegalProcess } from "../types";
@@ -34,6 +36,8 @@ export default function Processos() {
   const openModal = useUi((s) => s.openModal);
   const navigate = useNavigate();
   const chart = useChartTheme();
+  const [importOpen, setImportOpen] = useState(false);
+  const semCliente = processesWithoutClient(processes).length;
   const [view, setView] = useState<ViewKey>("todos");
   const [search, setSearch] = useState("");
   const [kpi, setKpi] = useState<"" | "ativos" | "fech" | "arq">("");
@@ -134,6 +138,7 @@ export default function Processos() {
         <div className="flex-1">
           <DataTableToolbar
             primary={{ label: "Novo processo", onClick: () => openModal({ kind: "process" }) }}
+            extra={<button className="btn" onClick={() => setImportOpen(true)}><UserPlus size={16} /> Importar dos processos{semCliente > 0 && <span className="chip bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">{semCliente}</span>}</button>}
             search={search}
             onSearch={setSearch}
             filterCount={respId ? 1 : 0}
@@ -148,6 +153,7 @@ export default function Processos() {
         </div>
       </div>
       <DataTable columns={columns} rows={rows} getId={(p) => p.id} selectable sort={sort} onSortChange={setSort} onRowClick={(p) => navigate(`/processos/${p.id}`)} />
+      {importOpen && <ImportClientsModal onClose={() => setImportOpen(false)} />}
     </>
   );
 }
