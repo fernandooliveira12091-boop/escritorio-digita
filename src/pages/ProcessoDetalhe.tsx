@@ -70,7 +70,7 @@ export default function ProcessoDetalhe() {
       </div>
       {p.needsReview && (
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
-          <span className="flex-1">Este processo foi cadastrado automaticamente a partir de uma intimação do DJEN. Vincule o cliente e confira o tipo de ação.</span>
+          <span className="flex-1">Este processo foi cadastrado automaticamente a partir de uma intimação do DJEN. Vincule o cliente e confira o tipo de ação.{p.parties && <> Partes no DJEN: <b>{p.parties}</b>.</>}</span>
           <button className="btn" onClick={() => openModal({ kind: "process", id: p.id })}>Completar cadastro</button>
         </div>
       )}

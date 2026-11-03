@@ -69,6 +69,8 @@ export interface LegalProcess {
   needsReview?: boolean;
   className?: string;
   orgao?: string;
+  /** Partes informadas pelo DJEN, para ajudar a revisar processos cadastrados automaticamente. */
+  parties?: string;
   /** Resultado da última consulta ao DataJud. */
   datajudFound?: boolean;
   createdAt: string;
@@ -169,6 +171,9 @@ export interface Intimation {
   orgao?: string;
   tipo?: string;
   link?: string;
+  /** Partes da comunicação (destinatários), ex.: "Fulano x Empresa S.A.". */
+  partes?: string;
+  className?: string;
 }
 
 export interface MonitoredTerm {

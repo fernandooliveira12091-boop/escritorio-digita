@@ -74,7 +74,7 @@ export default function Intimacoes() {
   const procOf = (i: Intimation) => processes.find((x) => x.id === i.processId);
   const procName = (i: Intimation) => {
     const p = procOf(i);
-    return (p && contacts.find((c) => c.id === p.contactIds[0])?.name) || (p?.needsReview ? "Processo a revisar" : "—");
+    return (p && contacts.find((c) => c.id === p.contactIds[0])?.name) || i.partes || (p?.needsReview ? "Processo a revisar" : "—");
   };
   const courts = [...new Set(intimations.map((i) => i.court).filter(Boolean))].sort();
   const rows = intimations
@@ -179,6 +179,12 @@ export default function Intimacoes() {
           <p className="muted mb-3 text-xs">
             {[reading.court, reading.orgao, reading.tipo, `publicada em ${fmtDateTime(reading.publishedAt)}`, reading.oab && `OAB ${reading.oab}`].filter(Boolean).join(" · ")}
           </p>
+          {(reading.partes || reading.className) && (
+            <dl className="mb-3 grid grid-cols-[90px_1fr] gap-y-1 text-sm">
+              {reading.partes && <><dt className="muted">Partes</dt><dd>{reading.partes}</dd></>}
+              {reading.className && <><dt className="muted">Classe</dt><dd>{reading.className}</dd></>}
+            </dl>
+          )}
           {procOf(reading)?.needsReview && <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">Processo cadastrado automaticamente. Abra o processo e vincule o cliente.</p>}
           <p className="whitespace-pre-wrap text-sm leading-relaxed">{reading.text || "Publicação sem texto."}</p>
           {reading.link && <a className="link mt-3 inline-flex items-center gap-1 text-sm" href={reading.link} target="_blank" rel="noreferrer">Ver documento no tribunal <ExternalLink size={14} /></a>}
