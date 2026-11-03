@@ -30,6 +30,7 @@ export default function Intimacoes() {
   const [oab, setOab] = useState({ uf: "DF", number: "" });
   const [reading, setReading] = useState<Intimation | null>(null);
   const [busy, setBusy] = useState(false);
+  const [histDays, setHistDays] = useState(0); // 0 = só novidades
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
 
   const oabs = monitoredTerms.filter((t) => t.kind === "OAB");
@@ -59,10 +60,10 @@ export default function Intimacoes() {
     }
     setBusy(true);
     try {
-      const r = await buscarIntimacoes(30);
+      const r = await buscarIntimacoes(histDays || 30, histDays > 0);
       const err = r.djen.oabs.find((o) => o.error);
       if (err) showToast(`Erro ao consultar o DJEN: ${err.error}`);
-      else showToast(`${r.djen.intimacoes} intimação(ões) nova(s)${r.djen.processosNovos ? `, ${r.djen.processosNovos} processo(s) novo(s) para revisar` : ""}. ${r.datajud.atualizados} processo(s) com andamentos novos.`);
+      else showToast(`${r.djen.intimacoes} intimação(ões) nova(s)${r.djen.processosNovos ? `, ${r.djen.processosNovos} processo(s) novo(s) para revisar` : ""}${r.djen.partesCompletadas ? `, partes completadas em ${r.djen.partesCompletadas} processo(s)` : ""}. ${r.datajud.atualizados} processo(s) com andamentos novos.`);
     } catch (e) {
       showToast((e as Error).message);
     } finally {
@@ -101,6 +102,17 @@ export default function Intimacoes() {
         actions={
           <>
             <button className="btn" onClick={() => setTermOpen(true)}>Cadastrar OAB</button>
+            {cloudMode && (
+              <label>
+                <span className="sr-only">Período da busca</span>
+                <select className="input w-auto" value={histDays} onChange={(e) => setHistDays(+e.target.value)} disabled={busy}>
+                  <option value={0}>Só novidades</option>
+                  <option value={90}>Histórico: 3 meses</option>
+                  <option value={180}>Histórico: 6 meses</option>
+                  <option value={365}>Histórico: 12 meses</option>
+                </select>
+              </label>
+            )}
             <button className="btn-primary" onClick={syncNow} disabled={busy || !oabs.length}>
               {busy ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} {busy ? "Buscando…" : "Buscar agora"}
             </button>

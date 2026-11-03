@@ -1,7 +1,7 @@
 import { supabase } from "./supabase";
 import { currentWorkspaceId } from "../store/sync";
 
-export interface DjenResult { intimacoes: number; processosNovos: number; oabs: { oab: string; found: number; novas: number; error?: string }[] }
+export interface DjenResult { intimacoes: number; processosNovos: number; partesCompletadas?: number; oabs: { oab: string; found: number; novas: number; error?: string }[] }
 export interface DatajudResult { consultados: number; atualizados: number; naoEncontrados: string[]; erros: string[] }
 
 /** Chama a função "tribunais" do Supabase (DJEN e DataJud). Os dados novos chegam pela sincronização. */
@@ -19,5 +19,6 @@ async function call<T>(body: Record<string, unknown>): Promise<T> {
   return data as T;
 }
 
-export const buscarIntimacoes = (days = 30) => call<{ djen: DjenResult; datajud: DatajudResult }>({ action: "sync", days });
+/** Busca no DJEN. full = histórico dos últimos "days" dias; sem full, só o que é novo desde a última busca. */
+export const buscarIntimacoes = (days = 30, full = false) => call<{ djen: DjenResult; datajud: DatajudResult }>({ action: "sync", days, full });
 export const atualizarAndamentos = (processIds: string[]) => call<{ datajud: DatajudResult }>({ action: "datajud", processIds });

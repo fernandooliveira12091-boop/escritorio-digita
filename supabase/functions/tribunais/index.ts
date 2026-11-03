@@ -92,26 +92,39 @@ function partiesOf(it: any): string {
   if (ativo.length && passivo.length) return `${side(ativo)} x ${side(passivo)}`;
   return side([...ativo, ...passivo, ...outros]);
 }
+/**
+ * Busca as publicações de uma OAB entre duas datas. O período é dividido em janelas
+ * de 30 dias, e cada janela é paginada até completar o total ("count") que a API informa.
+ */
 async function fetchDjen(oab: string, uf: string, from: string, to: string) {
   const items: any[] = [];
-  for (let page = 1; page <= 20; page++) {
-    const url = new URL(DJEN_URL);
-    url.search = new URLSearchParams({
-      numeroOab: oab, ufOab: uf, dataDisponibilizacaoInicio: from, dataDisponibilizacaoFim: to, pagina: String(page), itensPorPagina: "100",
-    }).toString();
-    const res = await fetch(url, { headers: { Accept: "application/json" } });
-    if (res.status === 429) { await sleep(5000); page--; continue; }
-    if (!res.ok) throw new Error(`DJEN respondeu ${res.status}`);
-    const body = await res.json();
-    const list = body.items ?? body.content ?? body.data ?? [];
-    items.push(...list);
-    if (list.length < 100) break;
-    await sleep(400);
+  const end = new Date(`${to}T12:00:00Z`);
+  for (let winStart = new Date(`${from}T12:00:00Z`); winStart <= end; winStart = new Date(winStart.getTime() + 30 * 864e5)) {
+    const winEnd = new Date(Math.min(winStart.getTime() + 29 * 864e5, end.getTime()));
+    let got = 0, retries = 0;
+    for (let page = 1; page <= 50; page++) {
+      const url = new URL(DJEN_URL);
+      url.search = new URLSearchParams({
+        numeroOab: oab, ufOab: uf, dataDisponibilizacaoInicio: ymd(winStart), dataDisponibilizacaoFim: ymd(winEnd), pagina: String(page), itensPorPagina: "100",
+      }).toString();
+      const res = await fetch(url, { headers: { Accept: "application/json" } });
+      if (res.status === 429 && retries < 3) { retries++; await sleep(5000 * retries); page--; continue; }
+      if (!res.ok) throw new Error(`DJEN respondeu ${res.status}`);
+      const body = await res.json();
+      const list = body.items ?? body.content ?? body.data ?? [];
+      items.push(...list);
+      got += list.length;
+      const total = Number(body.count ?? 0);
+      // Para quando a página vem vazia ou quando já veio tudo o que a API diz ter.
+      if (!list.length || (total ? got >= total : list.length < 100)) break;
+      await sleep(400);
+    }
+    await sleep(300);
   }
   return items;
 }
 
-async function syncDjen(ws: string, days = 30) {
+async function syncDjen(ws: string, days = 30, full = false) {
   const [terms, intimations, processes, users, settings] = await Promise.all([
     getCollection(ws, "monitoredTerms"), getCollection(ws, "intimations"), getCollection(ws, "processes"),
     getCollection(ws, "users"), getSettings(ws),
@@ -125,6 +138,21 @@ async function syncDjen(ws: string, days = 30) {
   const type = settings?.actionTypes?.find((t: any) => t.groupId === group?.id) ?? settings?.actionTypes?.[0];
 
   const newIntimations: Doc[] = [];
+  const touched = new Map<string, Doc>(); // processos e intimações já existentes que ganharam as partes
+  const intimationById = new Map(intimations.map((i) => [i.id, i]));
+  const backfill = (it: any, id: string) => {
+    const list = (it.destinatarios ?? []).filter((d: any) => d?.nome).map((d: any) => ({ nome: String(d.nome).trim(), polo: d.polo ?? "" }));
+    if (!list.length) return;
+    const parties = partiesOf(it);
+    const old = intimationById.get(id);
+    if (old && !old.partesList?.length) touched.set(`i:${id}`, { ...old, partes: old.partes || parties, partesList: list });
+    const proc = byNumber.get(digits(String(it.numeroprocessocommascara ?? it.numero_processo ?? "")));
+    if (proc && !proc.contactIds?.length && !proc.partiesList?.length) {
+      const next = { ...proc, parties: proc.parties || parties, partiesList: list };
+      byNumber.set(digits(proc.number), next);
+      touched.set(`p:${proc.id}`, next);
+    }
+  };
   const newProcesses: Doc[] = [];
   const updatedTerms: Doc[] = [];
   const summary: { oab: string; found: number; novas: number; error?: string }[] = [];
@@ -132,13 +160,18 @@ async function syncDjen(ws: string, days = 30) {
 
   for (const term of terms.filter((t) => t.kind === "OAB" && t.oabNumber && t.oabUf)) {
     // Repete os 2 últimos dias da busca anterior, para não perder publicações tardias.
-    const start = term.lastSyncAt ? new Date(new Date(term.lastSyncAt).getTime() - 2 * 864e5) : new Date(today.getTime() - days * 864e5);
+    // Busca de histórico (full) ignora a última busca e volta "days" dias.
+    const start = term.lastSyncAt && !full ? new Date(new Date(term.lastSyncAt).getTime() - 2 * 864e5) : new Date(today.getTime() - days * 864e5);
     try {
       const items = await fetchDjen(digits(term.oabNumber), String(term.oabUf).toUpperCase(), ymd(start), ymd(today));
       let novas = 0;
       for (const it of items) {
         const id = `djen_${it.id ?? it.hash}`;
-        if (known.has(id)) continue;
+        if (known.has(id)) {
+          // Já recebida: aproveita para completar as partes de processos e intimações antigos.
+          backfill(it, id);
+          continue;
+        }
         // Comunicação cancelada pelo tribunal não entra.
         if (it.ativo === false || it.data_cancelamento) continue;
         known.add(id);
@@ -177,7 +210,8 @@ async function syncDjen(ws: string, days = 30) {
     }
   }
 
-  await putRecords(ws, "processes", newProcesses);
+  await putRecords(ws, "processes", [...newProcesses, ...[...touched].filter(([k]) => k.startsWith("p:")).map(([, v]) => v)]);
+  await putRecords(ws, "intimations", [...touched].filter(([k]) => k.startsWith("i:")).map(([, v]) => v));
   await putRecords(ws, "intimations", newIntimations);
   await putRecords(ws, "monitoredTerms", updatedTerms);
   if (newIntimations.length) {
@@ -186,7 +220,7 @@ async function syncDjen(ws: string, days = 30) {
       createdAt: nowIso(), read: false, link: "/intimacoes",
     }]);
   }
-  return { intimacoes: newIntimations.length, processosNovos: newProcesses.length, oabs: summary, processIds: newProcesses.map((p) => p.id) };
+  return { intimacoes: newIntimations.length, processosNovos: newProcesses.length, partesCompletadas: [...touched.keys()].filter((k) => k.startsWith("p:")).length, oabs: summary, processIds: newProcesses.map((p) => p.id) };
 }
 
 // ---------- DataJud ----------
@@ -298,10 +332,12 @@ Deno.serve(async (req) => {
     const ws = String(body.workspaceId ?? "");
     if (!ws || !(await isMember(auth.user.id, ws))) return json({ error: "Sem acesso a este escritório." }, 403);
 
-    if (body.action === "djen") return json({ djen: await syncDjen(ws, Number(body.days) || 30) });
+    const days = Math.min(365, Math.max(1, Number(body.days) || 30));
+    const full = body.full === true;
+    if (body.action === "djen") return json({ djen: await syncDjen(ws, days, full) });
     if (body.action === "datajud") return json({ datajud: await syncDatajud(ws, { processIds: body.processIds, limit: body.processIds?.length ? 20 : 40 }) });
     if (body.action === "sync") {
-      const djen = await syncDjen(ws, Number(body.days) || 30);
+      const djen = await syncDjen(ws, days, full);
       const datajud = await syncDatajud(ws, { limit: 30 });
       return json({ djen, datajud });
     }
