@@ -4,14 +4,15 @@ import { useSearchParams } from "react-router-dom";
 import { Avatar, Field, Modal, PageHeader, Tabs, Toggle } from "../components/ui/basics";
 import { DataTable, type Column } from "../components/ui/DataTable";
 import { fmtDate, uid } from "../lib/format";
+import { whatsappStatus, type WhatsappStatus } from "../lib/whatsapp";
 import { cloudMode, siteUrl } from "../lib/supabase";
 import { inviteEmail } from "../store/sync";
 import { useUi } from "../store/ui";
 import { useStore } from "../store/useStore";
-import type { Role, User } from "../types";
+import type { AgentSettings, Role, User } from "../types";
 
 const SECTIONS = {
-  usuarios: "Usuários", ia: "Inteligência Artificial", termos: "Termos monitorados", financeiro: "Financeiro", tarefas: "Tarefas", workflow: "Workflow",
+  usuarios: "Usuários", whatsapp: "Agente de IA no WhatsApp", ia: "Inteligência Artificial", termos: "Termos monitorados", financeiro: "Financeiro", tarefas: "Tarefas", workflow: "Workflow",
   grupos: "Grupos de ação", tipos: "Tipos de ação", etapas: "Etapas", metas: "Metas", origens: "Origem de pessoas", parceiros: "Parceiros",
   caixa: "Caixa de entrada", notificacoes: "Notificações", api: "Integrações e API",
 } as const;
@@ -137,6 +138,52 @@ function Users() {
   );
 }
 
+const DEFAULT_AGENT: AgentSettings = { enabled: true, whatsappNumber: "", officeHours: "segunda a sexta, das 9h às 18h", instructions: "", handoffMessage: "" };
+
+function WhatsappAgent() {
+  const { settings, updateSettings } = useStore();
+  const showToast = useUi((s) => s.showToast);
+  const agent = { ...DEFAULT_AGENT, ...settings.agent };
+  const [status, setStatus] = useState<WhatsappStatus | null>(null);
+  const [checking, setChecking] = useState(false);
+  const set = (c: Partial<AgentSettings>) => updateSettings({ agent: { ...agent, ...c } });
+  const check = async () => {
+    setChecking(true);
+    try { setStatus(await whatsappStatus()); } catch (e) { showToast((e as Error).message); } finally { setChecking(false); }
+  };
+  const items: [keyof WhatsappStatus, string][] = [
+    ["anthropic", "Chave da IA (ANTHROPIC_API_KEY)"], ["token", "Token da Meta (WHATSAPP_TOKEN)"], ["phoneNumberId", "ID do número (WHATSAPP_PHONE_NUMBER_ID)"],
+    ["appSecret", "Chave secreta do app (WHATSAPP_APP_SECRET)"], ["verifyToken", "Token de verificação (WHATSAPP_VERIFY_TOKEN)"], ["workspaceOk", "Número ligado a este escritório"],
+  ];
+  return (
+    <div className="max-w-3xl space-y-4">
+      <div className="card space-y-4">
+        <div className="flex items-start justify-between gap-3">
+          <div><h2 className="h2">Agente de IA no WhatsApp</h2><p className="muted text-sm">Atende quem chega pelos anúncios, faz a triagem (Previdenciário, Cível e Família) e registra o lead no CRM. Ele se apresenta como assistente virtual, não dá parecer jurídico, não fala de honorários e passa para a equipe os casos urgentes.</p></div>
+          <Toggle checked={agent.enabled} onChange={(v) => set({ enabled: v })} label="Agente ligado" />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Número do WhatsApp do escritório (usado nos links das campanhas)">{(id) => <input id={id} className="input" placeholder="+55 61 99999-9999" value={agent.whatsappNumber} onChange={(e) => set({ whatsappNumber: e.target.value })} />}</Field>
+          <Field label="Horário de atendimento da equipe">{(id) => <input id={id} className="input" value={agent.officeHours} onChange={(e) => set({ officeHours: e.target.value })} />}</Field>
+          <Field label="Instruções extras para o agente (opcional)" className="sm:col-span-2">{(id) => <textarea id={id} rows={3} className="input" placeholder="Ex.: Atendemos também por videochamada. Não atendemos causas trabalhistas." value={agent.instructions} onChange={(e) => set({ instructions: e.target.value })} />}</Field>
+          <Field label="Mensagem quando a IA passa para a equipe (opcional)" className="sm:col-span-2">{(id) => <input id={id} className="input" placeholder="Obrigado! Vou passar sua conversa para a equipe, que responde em breve." value={agent.handoffMessage} onChange={(e) => set({ handoffMessage: e.target.value })} />}</Field>
+        </div>
+        <p className="muted text-xs">As respostas usam o modelo Claude Opus 5.5 da Anthropic, cobrado por uso na sua conta. Se a IA recusar responder a alguma mensagem, o pedido é refeito automaticamente em outro modelo recomendado pela Anthropic; se ainda assim não houver resposta, a conversa passa para a equipe.</p>
+      </div>
+      <div className="card space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="h2">Conexão</h2><button className="btn" disabled={!cloudMode || checking} onClick={check}>{checking ? "Verificando…" : "Verificar conexão"}</button></div>
+        {!cloudMode && <p className="muted text-sm">Disponível no sistema online, com login.</p>}
+        {status && (
+          <>
+            <ul className="space-y-1 text-sm">{items.map(([k, label]) => <li key={k} className="flex items-center gap-2"><span className={status[k] ? "text-green-600" : "text-red-600"}>{status[k] ? "✓" : "✗"}</span>{label}</li>)}</ul>
+            <div className="text-sm"><span className="label">Endereço do webhook (cole no painel da Meta)</span><input className="input font-mono text-xs" readOnly value={status.webhookUrl} onFocus={(e) => e.target.select()} aria-label="Endereço do webhook" /></div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SectionBody({ section }: { section: Section }) {
   const s = useStore();
   const { settings, updateSettings, processes, users, patch, monitoredTerms, remove, upsert } = s;
@@ -149,6 +196,8 @@ function SectionBody({ section }: { section: Section }) {
   switch (section) {
     case "usuarios":
       return <Users />;
+    case "whatsapp":
+      return <WhatsappAgent />;
     case "etapas": {
       const funnel = settings.funnels.find((f) => f.id === funnelId) ?? settings.funnels[0];
       return card("Etapas", "As etapas de cada fase viram as colunas do CRM.", (

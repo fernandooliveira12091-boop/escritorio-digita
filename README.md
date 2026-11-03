@@ -96,3 +96,10 @@ Instalação: publique a função `supabase/functions/agenda` (nome `agenda`, co
 ## Configuração automática do Supabase (GitHub Actions)
 
 O workflow `.github/workflows/supabase.yml` roda os scripts do banco e publica as funções `tribunais` e `agenda` sempre que algo muda em `supabase/` (ou pelo botão **Run workflow**). Ele precisa dos segredos do repositório `SUPABASE_ACCESS_TOKEN` (token da conta Supabase) e `CRON_SECRET` (senha do agendamento).
+
+## Agente de IA no WhatsApp e campanhas
+
+- **Função `supabase/functions/whatsapp`**: recebe as mensagens da WhatsApp Cloud API (webhook com assinatura `X-Hub-Signature-256`), responde com o Claude (`claude-opus-5-5`, esforço baixo, prompt fixo em cache e fallback do lado do servidor), faz a triagem (Previdenciário, Cível e Família) e registra o lead: contato, card no funil Marketing, tarefa de retorno e notificação. Urgências e pedidos de falar com o advogado passam para a equipe.
+- **Atendimento**: conversas em tempo real, triagem da IA, assumir ou devolver a conversa para a IA e responder pelo sistema (dentro da janela de 24 h do WhatsApp).
+- **Campanhas**: cada campanha tem um código (ex.: `[BPC1]`) no link do WhatsApp; anúncios clique-para-WhatsApp da Meta também são reconhecidos pelo ID do anúncio. Mostra conversas, leads, contratos e custo por lead.
+- Segredos (GitHub › Actions, copiados para o Supabase pelo workflow): `ANTHROPIC_API_KEY`, `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN`.

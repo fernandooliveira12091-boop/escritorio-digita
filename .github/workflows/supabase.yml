@@ -64,10 +64,26 @@ jobs:
           if [ "$status" -ge 300 ]; then echo "::error::Configuração do login falhou ($status)"; cat /tmp/resp.json; exit 1; fi
           echo "Site URL: $SITE_URL"
 
-      - name: Funções (tribunais e agenda)
+      - name: Funções (tribunais, agenda e whatsapp)
         run: |
           supabase functions deploy tribunais --project-ref "$PROJECT_REF" --no-verify-jwt --yes
           supabase functions deploy agenda --project-ref "$PROJECT_REF" --no-verify-jwt --yes
+          supabase functions deploy whatsapp --project-ref "$PROJECT_REF" --no-verify-jwt --yes
+
+      - name: Chaves do agente de IA no WhatsApp
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          WHATSAPP_TOKEN: ${{ secrets.WHATSAPP_TOKEN }}
+          WHATSAPP_PHONE_NUMBER_ID: ${{ secrets.WHATSAPP_PHONE_NUMBER_ID }}
+          WHATSAPP_APP_SECRET: ${{ secrets.WHATSAPP_APP_SECRET }}
+          WHATSAPP_VERIFY_TOKEN: ${{ secrets.WHATSAPP_VERIFY_TOKEN }}
+        run: |
+          # Copia para o Supabase só as chaves que existirem nos segredos do GitHub (os valores não aparecem no log).
+          args=()
+          for k in ANTHROPIC_API_KEY WHATSAPP_TOKEN WHATSAPP_PHONE_NUMBER_ID WHATSAPP_APP_SECRET WHATSAPP_VERIFY_TOKEN; do
+            if [ -n "${!k}" ]; then args+=("$k=${!k}"); echo "$k: configurada"; else echo "$k: ainda não cadastrada no GitHub"; fi
+          done
+          if [ ${#args[@]} -gt 0 ]; then supabase secrets set "${args[@]}" --project-ref "$PROJECT_REF"; fi
 
       - name: Busca automática nos tribunais (CRON_SECRET)
         env:

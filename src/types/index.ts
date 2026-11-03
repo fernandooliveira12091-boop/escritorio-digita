@@ -33,6 +33,7 @@ export interface Contact {
   address: string;
   city: string;
   origin: string;
+  campaignId?: string;
   createdAt: string;
 }
 
@@ -78,6 +79,9 @@ export interface LegalProcess {
   /** Partes informadas pelo DJEN, para ajudar a revisar processos cadastrados automaticamente. */
   parties?: string;
   partiesList?: Party[];
+  /** Lead vindo de campanha / conversa do WhatsApp. */
+  campaignId?: string;
+  conversationId?: string;
   /** Resultado da última consulta ao DataJud. */
   datajudFound?: boolean;
   createdAt: string;
@@ -244,6 +248,62 @@ export interface ChatMessage {
   text: string;
 }
 
+export type CampaignChannel = "meta" | "tiktok" | "google" | "outro";
+
+/** Campanha de anúncios. O código vai no link do WhatsApp ([BPC1]) para identificar de onde veio o lead. */
+export interface Campaign {
+  id: string;
+  name: string;
+  channel: CampaignChannel;
+  code: string;
+  area: string;
+  budget: number;
+  startDate: string;
+  endDate: string;
+  status: "ativa" | "pausada" | "encerrada";
+  /** IDs dos anúncios da Meta (clique para WhatsApp), separados por vírgula. */
+  adIds: string;
+  notes: string;
+  createdAt: string;
+}
+
+export interface ChatMsg {
+  id: string;
+  from: "cliente" | "ia" | "equipe" | "sistema";
+  text: string;
+  at: string;
+  waId?: string;
+  by?: string;
+}
+
+/** Conversa do WhatsApp. Escrita só pelo servidor (função whatsapp); o sistema lê e pede ações. */
+export interface Conversation {
+  id: string;
+  channel: "whatsapp";
+  phone: string;
+  name: string;
+  status: "ia" | "humano";
+  aiPaused: boolean;
+  messages: ChatMsg[];
+  lastInboundAt?: string;
+  lastMessageAt?: string;
+  campaignId?: string;
+  referral?: { sourceId?: string; sourceType?: string; sourceUrl?: string; headline?: string };
+  contactId?: string;
+  processId?: string;
+  handoffReason?: string;
+  lead?: { nome: string; cidade: string; area: string; assunto: string; resumo: string; urgencia: "baixa" | "media" | "alta"; melhorHorario: string; at: string };
+  createdAt: string;
+}
+
+export interface AgentSettings {
+  enabled: boolean;
+  whatsappNumber: string;
+  officeHours: string;
+  instructions: string;
+  handoffMessage: string;
+}
+
 export interface Settings {
   officeName: string;
   officeCity: string;
@@ -262,4 +322,5 @@ export interface Settings {
   aiEnabled: boolean;
   apiKey: string;
   inbox: string;
+  agent?: AgentSettings;
 }

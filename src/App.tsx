@@ -2,7 +2,9 @@ import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthGate } from "./components/auth/AuthGate";
 import { Layout } from "./components/layout/Layout";
 import Agenda from "./pages/Agenda";
+import Atendimento from "./pages/Atendimento";
 import Atividades from "./pages/Atividades";
+import Campanhas from "./pages/Campanhas";
 import Configuracoes from "./pages/Configuracoes";
 import Contatos from "./pages/Contatos";
 import { Perfil, Suporte } from "./pages/Conta";
@@ -28,6 +30,8 @@ export default function App() {
             <Route path="/agenda" element={<Agenda />} />
             <Route path="/atividades" element={<Atividades />} />
             <Route path="/crm" element={<Crm />} />
+            <Route path="/atendimento" element={<Atendimento />} />
+            <Route path="/campanhas" element={<Campanhas />} />
             <Route path="/contatos" element={<Contatos />} />
             <Route path="/processos" element={<Processos />} />
             <Route path="/processos/:id" element={<ProcessoDetalhe />} />
