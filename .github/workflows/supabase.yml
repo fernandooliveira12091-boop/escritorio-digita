@@ -35,7 +35,7 @@ jobs:
 
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.122.1
 
       - name: Banco de dados (tabelas, regras de acesso e agenda)
         run: |
