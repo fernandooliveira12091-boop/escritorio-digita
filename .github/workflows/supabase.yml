@@ -53,8 +53,8 @@ jobs:
 
       - name: Funções (tribunais e agenda)
         run: |
-          supabase functions deploy tribunais --project-ref "$PROJECT_REF" --no-verify-jwt
-          supabase functions deploy agenda --project-ref "$PROJECT_REF" --no-verify-jwt
+          supabase functions deploy tribunais --project-ref "$PROJECT_REF" --no-verify-jwt --yes
+          supabase functions deploy agenda --project-ref "$PROJECT_REF" --no-verify-jwt --yes
 
       - name: Busca automática nos tribunais (CRON_SECRET)
         env:
