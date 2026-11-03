@@ -19,8 +19,8 @@ concurrency:
 env:
   PROJECT_REF: lihwcjlstpgdqyvdkmjd
   # Endereço do sistema e endereços aceitos nos links de login (confirmação de e-mail e nova senha).
-  SITE_URL: https://sistema.fernandooliveiraadvogado.com.br/
-  REDIRECT_URLS: https://sistema.fernandooliveiraadvogado.com.br/,https://fernandooliveira12091-boop.github.io/escritorio-digita/
+  SITE_URL: https://escritorio.fernandooliveiraadvogado.com.br/
+  REDIRECT_URLS: https://escritorio.fernandooliveiraadvogado.com.br/,https://fernandooliveira12091-boop.github.io/escritorio-digita/
   SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
 jobs:

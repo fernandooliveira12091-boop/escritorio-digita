@@ -55,7 +55,7 @@ Conta e assinatura › Restaurar dados de exemplo.
 
 O workflow `.github/workflows/deploy.yml` gera o site e publica a cada push na branch `main`.
 Na primeira vez, no GitHub: **Settings › Pages › Build and deployment › Source: GitHub Actions**.
-O endereço do sistema é **https://sistema.fernandooliveiraadvogado.com.br/** (domínio próprio configurado em Settings › Pages › Custom domain, com um registro CNAME `sistema` apontando para `fernandooliveira12091-boop.github.io`). O endereço antigo do GitHub redireciona para ele.
+O endereço do sistema é **https://escritorio.fernandooliveiraadvogado.com.br/** (domínio próprio configurado em Settings › Pages › Custom domain, com um registro CNAME `escritorio` apontando para `fernandooliveira12091-boop.github.io`). O endereço antigo do GitHub redireciona para ele.
 
 ## Login e banco de dados (Supabase)
 

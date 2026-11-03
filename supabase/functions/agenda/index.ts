@@ -5,7 +5,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.117.3";
 
 const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
-const SITE_URL = Deno.env.get("SITE_URL") ?? "https://sistema.fernandooliveiraadvogado.com.br/";
+const SITE_URL = Deno.env.get("SITE_URL") ?? "https://escritorio.fernandooliveiraadvogado.com.br/";
 const TZ = "America/Sao_Paulo";
 
 type Doc = Record<string, any> & { id: string };
