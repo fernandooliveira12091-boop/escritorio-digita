@@ -1,5 +1,5 @@
 import {
-  BarChart3, Bot, Megaphone, MessageCircle, Briefcase, Calendar, CheckSquare, Handshake, Home, LifeBuoy, PanelLeftClose, PanelLeftOpen, Scale, Settings, Users, Wallet, Bell, X,
+  BarChart3, Bot, Megaphone, MessageCircle, Briefcase, Calendar, CheckSquare, FileSignature, Handshake, Home, LifeBuoy, PanelLeftClose, PanelLeftOpen, Scale, Settings, Users, Wallet, Bell, X,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { BrandLogo } from "../ui/Brand";
@@ -10,6 +10,7 @@ const MAIN = [
   { to: "/agenda", label: "Agenda", icon: Calendar },
   { to: "/atividades", label: "Atividades", icon: CheckSquare },
   { to: "/crm", label: "CRM", icon: Briefcase },
+  { to: "/contratos", label: "Contratos", icon: FileSignature },
   { to: "/atendimento", label: "Atendimento", icon: MessageCircle },
   { to: "/campanhas", label: "Campanhas", icon: Megaphone },
   { to: "/contatos", label: "Contatos", icon: Users },

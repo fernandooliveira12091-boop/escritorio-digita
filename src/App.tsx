@@ -9,6 +9,7 @@ import Configuracoes from "./pages/Configuracoes";
 import Contatos from "./pages/Contatos";
 import { Perfil, Suporte } from "./pages/Conta";
 import Crm from "./pages/Crm";
+import Contratos from "./pages/Contratos";
 import Financeiro from "./pages/Financeiro";
 import Home from "./pages/Home";
 import Intimacoes from "./pages/Intimacoes";
@@ -30,6 +31,7 @@ export default function App() {
             <Route path="/agenda" element={<Agenda />} />
             <Route path="/atividades" element={<Atividades />} />
             <Route path="/crm" element={<Crm />} />
+            <Route path="/contratos" element={<Contratos />} />
             <Route path="/atendimento" element={<Atendimento />} />
             <Route path="/campanhas" element={<Campanhas />} />
             <Route path="/contatos" element={<Contatos />} />

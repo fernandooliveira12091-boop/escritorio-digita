@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { buildMockData } from "../mocks/data";
 import type {
-  AccessLog, Agent, BankAccount, Campaign, Contact, Conversation, Intimation, LegalProcess, MonitoredTerm, Notification, Partner, Settings, Task, Team, Template, Transaction, User,
+  AccessLog, Agent, BankAccount, Campaign, Contact, Contract, Conversation, Intimation, LegalProcess, MonitoredTerm, Notification, Partner, Settings, Task, Team, Template, Transaction, User,
 } from "../types";
 import { uid } from "../lib/format";
 import { cloudMode } from "../lib/supabase";
@@ -23,11 +23,12 @@ export interface Collections {
   monitoredTerms: MonitoredTerm[];
   accessLogs: AccessLog[];
   campaigns: Campaign[];
+  contracts: Contract[];
   conversations: Conversation[];
 }
 export type CollectionKey = keyof Collections;
 export const COLLECTION_KEYS: CollectionKey[] = [
-  "users", "teams", "contacts", "processes", "tasks", "transactions", "accounts", "agents", "templates", "partners", "intimations", "notifications", "monitoredTerms", "accessLogs", "campaigns", "conversations",
+  "users", "teams", "contacts", "processes", "tasks", "transactions", "accounts", "agents", "templates", "partners", "intimations", "notifications", "monitoredTerms", "accessLogs", "campaigns", "conversations", "contracts",
 ];
 type Item<K extends CollectionKey> = Collections[K][number];
 

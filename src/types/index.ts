@@ -248,6 +248,38 @@ export interface ChatMessage {
   text: string;
 }
 
+export type ContractStage = "negociacao" | "proposta" | "assinatura" | "fechado" | "perdido";
+
+/** Contrato de honorários, acompanhado em quadro da negociação até a assinatura. */
+export interface Contract {
+  id: string;
+  contactId: string;
+  /** Tipo de ação ou serviço, ex.: Salário-maternidade. */
+  title: string;
+  area: string;
+  stage: ContractStage;
+  /** Honorários contratados (valor total). */
+  value: number;
+  installments: number;
+  firstDueDate: string;
+  /** Valor pago (ou a pagar) a parceiro que indicou o cliente. */
+  partnerValue: number;
+  partnerId?: string;
+  /** Data importante do caso (ex.: data do parto) e o nome dela. */
+  eventDate: string;
+  eventLabel: string;
+  /** Previdenciário: o cliente precisa pagar contribuição antes do pedido? null = não informado. */
+  needsContribution: boolean | null;
+  processId?: string;
+  responsibleId: string;
+  signedAt?: string;
+  lostReason?: string;
+  financeLaunched?: boolean;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type CampaignChannel = "meta" | "tiktok" | "google" | "outro";
 
 /** Campanha de anúncios. O código vai no link do WhatsApp ([BPC1]) para identificar de onde veio o lead. */

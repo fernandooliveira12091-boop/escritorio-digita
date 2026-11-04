@@ -1,6 +1,6 @@
 import { addDays, addMonths, format, setHours, setMinutes, startOfMonth, subDays, subHours, subMonths } from "date-fns";
 import type {
-  Agent, BankAccount, Campaign, Contact, Conversation, Funnel, Intimation, LegalProcess, MonitoredTerm, Notification, Partner, Settings, Task, Team, Template, Transaction, User,
+  Agent, BankAccount, Campaign, Contact, Contract, Conversation, Funnel, Intimation, LegalProcess, MonitoredTerm, Notification, Partner, Settings, Task, Team, Template, Transaction, User,
 } from "../types";
 
 // Gerador determinístico, para os dados de exemplo serem sempre os mesmos.
@@ -329,7 +329,20 @@ export function buildMockData(now = new Date()) {
     },
   ];
 
-  return { users, teams, contacts, processes, tasks, transactions, accounts, agents, templates, partners, intimations, notifications, settings, monitoredTerms: [DEFAULT_OAB()], accessLogs: [], campaigns, conversations };
+  // Contratos de exemplo (fictícios) em várias etapas do quadro.
+  const ct = (i: number, stage: Contract["stage"], title: string, area: string, value: number, extra: Partial<Contract> = {}): Contract => ({
+    id: `ct${i}`, contactId: contacts[i].id, title, area, stage, value, installments: 1, firstDueDate: day(addDays(now, 10)), partnerValue: 0, eventDate: "", eventLabel: "",
+    needsContribution: null, responsibleId: users[i % 3].id, notes: "", createdAt: iso(subDays(now, 10 + i)), updatedAt: iso(subDays(now, i)), ...extra,
+  });
+  const contracts: Contract[] = [
+    ct(0, "fechado", "Salário-maternidade", "Previdenciário", 1500, { installments: 3, partnerValue: 100, eventLabel: "Data do parto", eventDate: day(addDays(now, 50)), needsContribution: false, signedAt: iso(subDays(now, 3)) }),
+    ct(4, "fechado", "Salário-maternidade", "Previdenciário", 1500, { partnerValue: 150, eventLabel: "Data do parto", eventDate: day(addDays(now, 75)), needsContribution: false, signedAt: iso(subDays(now, 8)) }),
+    ct(6, "assinatura", "Salário-maternidade", "Previdenciário", 1200, { eventLabel: "Data do parto", eventDate: day(addDays(now, 120)), needsContribution: true }),
+    ct(8, "proposta", "Divórcio consensual", "Família", 3000, { installments: 6 }),
+    ct(10, "negociacao", "BPC/LOAS", "Previdenciário", 0, { notes: "Aguardando laudo médico" }),
+  ];
+
+  return { users, teams, contacts, processes, tasks, transactions, accounts, agents, templates, partners, intimations, notifications, settings, monitoredTerms: [DEFAULT_OAB()], accessLogs: [], campaigns, conversations, contracts };
 }
 
 /** OAB monitorada por padrão nas intimações. */
