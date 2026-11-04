@@ -1,0 +1,61 @@
+# Diagnóstico do WhatsApp: mostra só situações e contagens (o repositório é público:
+# nada de tokens, telefones de clientes ou textos de mensagens no log).
+name: Diagnóstico do WhatsApp
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnostico:
+    runs-on: ubuntu-latest
+    env:
+      GRAPH: https://graph.facebook.com/v23.0
+      APP_ID: "1857514372231155"
+      PROJECT_REF: lihwcjlstpgdqyvdkmjd
+      WHATSAPP_TOKEN: ${{ secrets.WHATSAPP_TOKEN }}
+      WHATSAPP_PHONE_NUMBER_ID: ${{ secrets.WHATSAPP_PHONE_NUMBER_ID }}
+      WHATSAPP_APP_SECRET: ${{ secrets.WHATSAPP_APP_SECRET }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+    steps:
+      - name: Número na Meta
+        run: |
+          curl -s "$GRAPH/$WHATSAPP_PHONE_NUMBER_ID?fields=display_phone_number,verified_name,status,name_status,quality_rating,code_verification_status,platform_type,throughput&access_token=$WHATSAPP_TOKEN" \
+            | jq '{numero: .display_phone_number, nome: .verified_name, status, name_status, quality_rating, code_verification_status, platform_type, erro: .error.message}'
+
+      - name: Token (validade e contas do WhatsApp)
+        run: |
+          curl -s "$GRAPH/debug_token?input_token=$WHATSAPP_TOKEN&access_token=$WHATSAPP_TOKEN" \
+            | jq '{valido: .data.is_valid, app: .data.app_id, expira: .data.expires_at, permissoes: .data.scopes, contas: [.data.granular_scopes[]? | select(.scope|startswith("whatsapp")) | {scope, target_ids}], erro: .error.message}'
+
+      - name: App assinado nas contas do WhatsApp
+        run: |
+          for waba in $(curl -s "$GRAPH/debug_token?input_token=$WHATSAPP_TOKEN&access_token=$WHATSAPP_TOKEN" | jq -r '[.data.granular_scopes[]? | select(.scope|startswith("whatsapp")) | .target_ids[]?] | unique | .[]'); do
+            echo "Conta $waba:"
+            curl -s "$GRAPH/$waba/subscribed_apps?access_token=$WHATSAPP_TOKEN" | jq '{apps: [.data[]?.whatsapp_business_api_data | {id, name}], erro: .error.message}'
+            curl -s "$GRAPH/$waba/phone_numbers?fields=display_phone_number,status&access_token=$WHATSAPP_TOKEN" | jq '{numeros: [.data[]? | {display_phone_number, status}], erro: .error.message}'
+          done
+
+      - name: Webhook do app
+        run: |
+          curl -s "$GRAPH/$APP_ID/subscriptions?access_token=$APP_ID|$WHATSAPP_APP_SECRET" \
+            | jq '{webhooks: [.data[]? | {object, callback_url, active, campos: [.fields[]?.name]}], erro: .error.message}'
+          curl -s "$GRAPH/$APP_ID?fields=name&access_token=$APP_ID|$WHATSAPP_APP_SECRET" | jq '{app: .name, chave_secreta_confere: (.error == null), erro: .error.message}'
+
+      - name: Conversas no sistema (só contagens)
+        run: |
+          q='select count(*) as conversas, max(data->>'"'"'lastInboundAt'"'"') as ultima_mensagem_recebida, sum(case when data->>'"'"'status'"'"'='"'"'humano'"'"' then 1 else 0 end) as com_equipe from records where collection='"'"'conversations'"'"' and id like '"'"'wa\_%'"'"';'
+          curl -s -X POST "https://api.supabase.com/v1/projects/$PROJECT_REF/database/query" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+            -d "$(jq -n --arg q "$q" '{query: $q}')" | jq .
+
+      - name: Chamadas recentes à função whatsapp (última hora)
+        run: |
+          start=$(date -u -d '-1 hour' +%Y-%m-%dT%H:%M:%SZ); end=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          sql="select timestamp, response.status_code as status, request.method as metodo from function_edge_logs cross join unnest(metadata) as m cross join unnest(m.response) as response cross join unnest(m.request) as request where request.url like '%/whatsapp%' order by timestamp desc limit 20"
+          curl -s -G "https://api.supabase.com/v1/projects/$PROJECT_REF/analytics/endpoints/logs.all" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            --data-urlencode "sql=$sql" --data-urlencode "iso_timestamp_start=$start" --data-urlencode "iso_timestamp_end=$end" \
+            | jq '{chamadas: [.result[]? | {quando: (.timestamp/1000000 | todate), metodo, status}], erro: .error}'
