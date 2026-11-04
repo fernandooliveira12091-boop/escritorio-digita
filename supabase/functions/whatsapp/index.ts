@@ -11,7 +11,7 @@
 import Anthropic from "npm:@anthropic-ai/sdk@0.135.0";
 import { createClient } from "npm:@supabase/supabase-js@2.117.3";
 
-const env = (k: string) => Deno.env.get(k) ?? "";
+const env = (k: string) => (Deno.env.get(k) ?? "").trim(); // tira espaços e quebras de linha coladas junto
 const admin = createClient(env("SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY"), { auth: { persistSession: false } });
 const GRAPH = `https://graph.facebook.com/${env("WHATSAPP_GRAPH_VERSION") || "v23.0"}`;
 const MODEL = "claude-opus-5-5";
@@ -500,8 +500,16 @@ Deno.serve(async (req) => {
 
     if (body.action === "status") {
       const target = await resolveWorkspace();
+      // Testa a chave da IA de verdade (listar modelos não gasta créditos).
+      let anthropic = false, anthropicError = "";
+      if (!env("ANTHROPIC_API_KEY")) anthropicError = "não cadastrada";
+      else {
+        const r = await fetch("https://api.anthropic.com/v1/models?limit=1", { headers: { "x-api-key": env("ANTHROPIC_API_KEY"), "anthropic-version": "2023-06-01" } }).catch(() => null);
+        anthropic = !!r?.ok;
+        if (!anthropic) anthropicError = r?.status === 401 ? "a Anthropic recusou a chave (inválida ou apagada)" : r?.status === 403 ? "a chave não tem permissão" : `erro ${r?.status ?? "de rede"}`;
+      }
       return json({
-        anthropic: !!env("ANTHROPIC_API_KEY"), token: !!env("WHATSAPP_TOKEN"), phoneNumberId: !!env("WHATSAPP_PHONE_NUMBER_ID"),
+        anthropic, anthropicError, token: !!env("WHATSAPP_TOKEN"), phoneNumberId: !!env("WHATSAPP_PHONE_NUMBER_ID"),
         appSecret: !!env("WHATSAPP_APP_SECRET"), verifyToken: !!env("WHATSAPP_VERIFY_TOKEN"), workspaceOk: target === ws, workspaceId: ws,
         webhookUrl: `${env("SUPABASE_URL")}/functions/v1/whatsapp`,
       });
@@ -519,7 +527,13 @@ Deno.serve(async (req) => {
         messages: history.map((m: any) => ({ id: rid("m"), from: m.from === "cliente" ? "cliente" : "ia", text: String(m.text ?? "").slice(0, 4000), at: nowIso() })),
       };
       const simulation: string[] = [];
-      const reply = await agentReply({ ws, conv, settings, attendants, simulation });
+      let reply: string;
+      try {
+        reply = await agentReply({ ws, conv, settings, attendants, simulation });
+      } catch (e) {
+        const st = (e as any)?.status;
+        return json({ error: st === 401 ? "A Anthropic recusou a chave da IA (ANTHROPIC_API_KEY). Crie uma chave nova no console da Anthropic, atualize o segredo no GitHub e rode o workflow “Configurar Supabase”." : st === 400 && /credit/i.test(String((e as Error).message)) ? "A conta da Anthropic está sem créditos (console.anthropic.com → Billing)." : `A IA não respondeu: ${(e as Error).message}` }, 400);
+      }
       return json({ reply, events: simulation, attendantId: conv.attendantId ?? null, lead: conv.lead ?? null, handedOff: !!conv.aiPaused });
     }
 

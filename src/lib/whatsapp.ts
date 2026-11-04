@@ -5,6 +5,7 @@ const call = <T,>(body: Record<string, unknown>) => callFunction<T>("whatsapp", 
 
 export interface WhatsappStatus {
   anthropic: boolean;
+  anthropicError?: string;
   token: boolean;
   phoneNumberId: boolean;
   appSecret: boolean;
