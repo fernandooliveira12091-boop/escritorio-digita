@@ -77,10 +77,11 @@ jobs:
           WHATSAPP_PHONE_NUMBER_ID: ${{ secrets.WHATSAPP_PHONE_NUMBER_ID }}
           WHATSAPP_APP_SECRET: ${{ secrets.WHATSAPP_APP_SECRET }}
           WHATSAPP_VERIFY_TOKEN: ${{ secrets.WHATSAPP_VERIFY_TOKEN }}
+          WHATSAPP_WORKSPACE_ID: ${{ secrets.WHATSAPP_WORKSPACE_ID }}
         run: |
           # Copia para o Supabase só as chaves que existirem nos segredos do GitHub (os valores não aparecem no log).
           args=()
-          for k in ANTHROPIC_API_KEY WHATSAPP_TOKEN WHATSAPP_PHONE_NUMBER_ID WHATSAPP_APP_SECRET WHATSAPP_VERIFY_TOKEN; do
+          for k in ANTHROPIC_API_KEY WHATSAPP_TOKEN WHATSAPP_PHONE_NUMBER_ID WHATSAPP_APP_SECRET WHATSAPP_VERIFY_TOKEN WHATSAPP_WORKSPACE_ID; do
             if [ -n "${!k}" ]; then args+=("$k=${!k}"); echo "$k: configurada"; else echo "$k: ainda não cadastrada no GitHub"; fi
           done
           if [ ${#args[@]} -gt 0 ]; then supabase secrets set "${args[@]}" --project-ref "$PROJECT_REF"; fi

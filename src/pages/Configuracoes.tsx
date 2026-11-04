@@ -176,6 +176,12 @@ function WhatsappAgent() {
         {status && (
           <>
             <ul className="space-y-1 text-sm">{items.map(([k, label]) => <li key={k} className="flex items-center gap-2"><span className={status[k] ? "text-green-600" : "text-red-600"}>{status[k] ? "✓" : "✗"}</span>{label}</li>)}</ul>
+            {!status.workspaceOk && status.workspaceId && (
+              <div className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+                Para ligar o número a este escritório, crie no GitHub o segredo <b className="font-mono">WHATSAPP_WORKSPACE_ID</b> com o código abaixo e rode o workflow “Configurar Supabase”.
+                <input className="input mt-2 font-mono text-xs" readOnly value={status.workspaceId} onFocus={(e) => e.target.select()} aria-label="Código deste escritório" />
+              </div>
+            )}
             <div className="text-sm"><span className="label">Endereço do webhook (cole no painel da Meta)</span><input className="input font-mono text-xs" readOnly value={status.webhookUrl} onFocus={(e) => e.target.select()} aria-label="Endereço do webhook" /></div>
           </>
         )}

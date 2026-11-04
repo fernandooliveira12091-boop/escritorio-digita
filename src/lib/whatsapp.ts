@@ -10,6 +10,7 @@ export interface WhatsappStatus {
   appSecret: boolean;
   verifyToken: boolean;
   workspaceOk: boolean;
+  workspaceId?: string;
   webhookUrl: string;
 }
 

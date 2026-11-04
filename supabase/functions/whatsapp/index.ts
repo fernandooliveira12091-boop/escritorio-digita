@@ -502,7 +502,7 @@ Deno.serve(async (req) => {
       const target = await resolveWorkspace();
       return json({
         anthropic: !!env("ANTHROPIC_API_KEY"), token: !!env("WHATSAPP_TOKEN"), phoneNumberId: !!env("WHATSAPP_PHONE_NUMBER_ID"),
-        appSecret: !!env("WHATSAPP_APP_SECRET"), verifyToken: !!env("WHATSAPP_VERIFY_TOKEN"), workspaceOk: target === ws,
+        appSecret: !!env("WHATSAPP_APP_SECRET"), verifyToken: !!env("WHATSAPP_VERIFY_TOKEN"), workspaceOk: target === ws, workspaceId: ws,
         webhookUrl: `${env("SUPABASE_URL")}/functions/v1/whatsapp`,
       });
     }
