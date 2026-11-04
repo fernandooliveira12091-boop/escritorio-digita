@@ -2,6 +2,7 @@ import { addDays, addMonths, format, setHours, setMinutes, startOfMonth, subDays
 import type {
   Agent, BankAccount, Campaign, Contact, Contract, Conversation, Funnel, Intimation, LegalProcess, MonitoredTerm, Notification, Partner, Settings, Task, Team, Template, Transaction, User,
 } from "../types";
+import { defaultAttendants } from "../lib/attendants";
 
 // Gerador determinístico, para os dados de exemplo serem sempre os mesmos.
 let seed = 42;
@@ -300,14 +301,20 @@ export function buildMockData(now = new Date()) {
 
   // Exemplos de campanhas e conversas do WhatsApp (fictícios, para o modo demonstração).
   const campaigns: Campaign[] = [
-    { id: "cp1", name: "BPC/LOAS - Instagram", channel: "meta", code: "BPC1", area: "Previdenciário", budget: 600, startDate: day(subDays(now, 20)), endDate: day(addDays(now, 10)), status: "ativa", adIds: "", notes: "Anúncio clique para WhatsApp", createdAt: iso(subDays(now, 21)) },
+    { id: "cp1", name: "BPC/LOAS - Instagram", channel: "meta", code: "BPC1", area: "Previdenciário", budget: 600, startDate: day(subDays(now, 20)), endDate: day(addDays(now, 10)), status: "ativa", adIds: "", attendantId: "att2", notes: "Anúncio clique para WhatsApp", createdAt: iso(subDays(now, 21)) },
     { id: "cp2", name: "Divórcio - TikTok", channel: "tiktok", code: "DIV1", area: "Família", budget: 400, startDate: day(subDays(now, 12)), endDate: day(addDays(now, 18)), status: "ativa", adIds: "", notes: "", createdAt: iso(subDays(now, 13)) },
   ];
   const hoursAgo = (h: number) => iso(subHours(now, h));
   const conversations: Conversation[] = [
     {
-      id: "wa_5561999990001", channel: "whatsapp", phone: "5561999990001", name: "Rosângela (exemplo)", status: "ia", aiPaused: false, campaignId: "cp1", createdAt: hoursAgo(5), lastInboundAt: hoursAgo(4.5), lastMessageAt: hoursAgo(4.5), processId: processes[0]?.id,
-      lead: { nome: "Rosângela Alves (exemplo)", cidade: "Ceilândia/DF", area: "Previdenciário", assunto: "BPC/LOAS negado", resumo: "Pedido de BPC para a mãe idosa negado pelo INSS em setembro por renda.", urgencia: "media", melhorHorario: "manhã", at: hoursAgo(4.5) },
+      id: "wa_5561999990001", channel: "whatsapp", phone: "5561999990001", name: "Rosângela (exemplo)", status: "ia", aiPaused: false, campaignId: "cp1", attendantId: "att2", createdAt: hoursAgo(5), lastInboundAt: hoursAgo(4.5), lastMessageAt: hoursAgo(4.5), processId: processes[0]?.id,
+      lead: { nome: "Rosângela Alves (exemplo)", cidade: "Ceilândia/DF", area: "Previdenciário", assunto: "BPC/LOAS negado", resumo: "Pedido de BPC para a mãe idosa negado pelo INSS em setembro por renda.", urgencia: "media", melhorHorario: "manhã", at: hoursAgo(4.5), beneficio: "BPC/LOAS",
+        triagem: [
+          { pergunta: "Para quem é o benefício?", resposta: "Para a mãe, de 68 anos" },
+          { pergunta: "Quem mora na casa e tem renda?", resposta: "A mãe e a filha; a filha ganha cerca de 1 salário mínimo" },
+          { pergunta: "Tem CadÚnico atualizado?", resposta: "Sim, atualizado em 2025" },
+          { pergunta: "Já pediu no INSS?", resposta: "Sim, negado em setembro por renda" },
+        ] },
       messages: [
         { id: "m1", from: "cliente", text: "Olá! Vi o anúncio e gostaria de atendimento. [BPC1]", at: hoursAgo(5) },
         { id: "m2", from: "ia", text: "Olá! Sou o assistente virtual (uma inteligência artificial) do escritório Fernando Oliveira Advocacia. Pode me dizer seu nome?", at: hoursAgo(5) },
@@ -318,7 +325,7 @@ export function buildMockData(now = new Date()) {
       ],
     },
     {
-      id: "wa_5561999990002", channel: "whatsapp", phone: "5561999990002", name: "Carlos (exemplo)", status: "humano", aiPaused: true, campaignId: "cp2", createdAt: hoursAgo(1), lastInboundAt: hoursAgo(0.5), lastMessageAt: hoursAgo(0.5), handoffReason: "audiência marcada para amanhã",
+      id: "wa_5561999990002", channel: "whatsapp", phone: "5561999990002", name: "Carlos (exemplo)", status: "humano", aiPaused: true, campaignId: "cp2", attendantId: "att7", createdAt: hoursAgo(1), lastInboundAt: hoursAgo(0.5), lastMessageAt: hoursAgo(0.5), handoffReason: "audiência marcada para amanhã",
       messages: [
         { id: "m1", from: "cliente", text: "Boa tarde, quero ver sobre divórcio. [DIV1]", at: hoursAgo(1) },
         { id: "m2", from: "ia", text: "Boa tarde! Sou o assistente virtual (IA) do escritório. Qual é o seu nome?", at: hoursAgo(1) },
@@ -342,7 +349,7 @@ export function buildMockData(now = new Date()) {
     ct(10, "negociacao", "BPC/LOAS", "Previdenciário", 0, { notes: "Aguardando laudo médico" }),
   ];
 
-  return { users, teams, contacts, processes, tasks, transactions, accounts, agents, templates, partners, intimations, notifications, settings, monitoredTerms: [DEFAULT_OAB()], accessLogs: [], campaigns, conversations, contracts };
+  return { users, teams, contacts, processes, tasks, transactions, accounts, agents, templates, partners, intimations, notifications, settings, monitoredTerms: [DEFAULT_OAB()], accessLogs: [], campaigns, conversations, contracts, attendants: defaultAttendants() };
 }
 
 /** OAB monitorada por padrão nas intimações. */

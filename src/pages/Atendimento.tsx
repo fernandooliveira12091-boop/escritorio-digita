@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { EmptyState, PageHeader, Segmented } from "../components/ui/basics";
 import { normalize, relDateTime, waLink } from "../lib/format";
 import { cloudMode } from "../lib/supabase";
-import { sendWhatsapp, setConversationAi } from "../lib/whatsapp";
+import { sendWhatsapp, setConversationAi, setConversationAttendant } from "../lib/whatsapp";
 import { useUi } from "../store/ui";
 import { useStore } from "../store/useStore";
 import type { Conversation } from "../types";
@@ -19,7 +19,7 @@ const within24h = (c: Conversation) => !!c.lastInboundAt && Date.now() - new Dat
 const URG = { alta: "bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-300", media: "bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300", baixa: "bg-card dark:bg-white/10" };
 
 export default function Atendimento() {
-  const { conversations, campaigns, contacts } = useStore();
+  const { conversations, campaigns, contacts, attendants } = useStore();
   const showToast = useUi((s) => s.showToast);
   const [filter, setFilter] = useState<"todas" | "humano" | "ia" | "leads">("todas");
   const [search, setSearch] = useState("");
@@ -61,7 +61,7 @@ export default function Atendimento() {
       <PageHeader
         title="Atendimento"
         subtitle="Conversas do WhatsApp atendidas pelo agente de IA. Assuma a conversa quando quiser falar direto com o cliente."
-        actions={<Link className="btn" to="/campanhas"><Megaphone size={16} /> Campanhas</Link>}
+        actions={<><Link className="btn" to="/atendimento/agentes"><Bot size={16} /> Agentes por benefício</Link><Link className="btn" to="/campanhas"><Megaphone size={16} /> Campanhas</Link></>}
       />
       <div className="grid min-h-[560px] gap-4 lg:grid-cols-[340px_1fr]">
         <aside className={`surface flex min-w-0 flex-col overflow-hidden ${conv ? "hidden lg:flex" : "flex"}`}>
@@ -86,6 +86,7 @@ export default function Atendimento() {
                       <span className="muted block truncate text-xs">{lastText(c)}</span>
                       <span className="mt-1 flex flex-wrap gap-1">
                         {c.status === "humano" && <span className="chip bg-amber-50 text-[10px] text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">Aguardando equipe</span>}
+                        {(() => { const a = attendants.find((x) => x.id === c.attendantId); return a ? <span className="chip text-[10px] text-white" style={{ background: a.color }}>{a.benefit.split(" (")[0]}</span> : null; })()}
                         {c.lead && <span className="chip bg-green-50 text-[10px] text-green-700 dark:bg-green-500/15 dark:text-green-300">Lead: {c.lead.area}</span>}
                         {n > 0 && <span className="chip bg-primary text-[10px] text-white">{n} nova(s)</span>}
                       </span>
@@ -111,6 +112,14 @@ export default function Atendimento() {
                     {fmtPhone(conv.phone)}{campaign ? ` · campanha ${campaign.name}` : conv.referral?.headline ? ` · anúncio "${conv.referral.headline}"` : ""}
                   </p>
                 </div>
+                <label className="w-full sm:w-52">
+                  <span className="sr-only">Agente especialista desta conversa</span>
+                  <select className="input py-1.5 text-sm" value={conv.attendantId ?? ""} disabled={busy}
+                    onChange={(e) => { const id = e.target.value; const a = attendants.find((x) => x.id === id); run(() => setConversationAttendant(conv.id, id), a ? `Conversa com ${a.name}` : "Conversa na triagem geral"); }}>
+                    <option value="">Agente: triagem geral</option>
+                    {attendants.filter((a) => a.active || a.id === conv.attendantId).map((a) => <option key={a.id} value={a.id}>Agente: {a.benefit.split(" (")[0]}</option>)}
+                  </select>
+                </label>
                 <a className="btn" href={waLink(conv.phone.replace(/^55/, ""))} target="_blank" rel="noreferrer"><ExternalLink size={16} /> WhatsApp</a>
                 {conv.status === "ia" ? (
                   <button className="btn" disabled={busy} onClick={() => run(() => setConversationAi(conv.id, false), "Você assumiu a conversa. A IA parou de responder.")}><UserCheck size={16} /> Assumir conversa</button>
@@ -128,6 +137,14 @@ export default function Atendimento() {
                     {conv.lead.melhorHorario && <span className="muted">Retorno: {conv.lead.melhorHorario}</span>}
                   </div>
                   <p className="muted">{conv.lead.resumo}</p>
+                  {conv.lead.triagem?.length ? (
+                    <details className="pt-1">
+                      <summary className="cursor-pointer text-xs font-medium">Respostas da triagem{conv.lead.beneficio ? ` (${conv.lead.beneficio})` : ""}</summary>
+                      <dl className="mt-1 grid gap-x-4 gap-y-1 text-xs sm:grid-cols-2">
+                        {conv.lead.triagem.map((t, i) => <div key={i}><dt className="font-medium">{t.pergunta}</dt><dd className="muted">{t.resposta}</dd></div>)}
+                      </dl>
+                    </details>
+                  ) : null}
                   <div className="flex flex-wrap gap-3 pt-1 text-xs">
                     {conv.processId && <Link className="link" to={`/processos/${conv.processId}`}>Abrir card no CRM</Link>}
                     {conv.contactId && contacts.some((c) => c.id === conv.contactId) && <Link className="link" to="/contatos">Ver contato</Link>}

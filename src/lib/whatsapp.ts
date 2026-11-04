@@ -22,3 +22,16 @@ export function campaignLink(number: string, code: string) {
   const text = `Olá! Vi o anúncio e gostaria de atendimento. [${code}]`;
   return `https://wa.me/${number.replace(/\D/g, "")}?text=${encodeURIComponent(text)}`;
 }
+
+export const setConversationAttendant = (conversationId: string, attendantId: string) => call<{ ok: true }>({ action: "setAttendant", conversationId, attendantId });
+
+export interface SimulationResult {
+  reply: string;
+  events: string[];
+  attendantId: string | null;
+  lead: { nome: string; area: string; assunto: string; urgencia: string; beneficio?: string; triagem?: { pergunta: string; resposta: string }[] } | null;
+  handedOff: boolean;
+}
+/** Conversa de teste com um agente: usa a IA de verdade, mas nada é gravado nem enviado pelo WhatsApp. */
+export const simulateAgent = (attendantId: string, messages: { from: "cliente" | "ia"; text: string }[]) =>
+  callFunction<SimulationResult>("whatsapp", { action: "simulate", attendantId, messages }, "O teste do agente usa a IA do sistema online. Entre com login para testar.");

@@ -2,7 +2,8 @@
 //
 // Meta → GET  ?hub.mode=subscribe&hub.verify_token=…&hub.challenge=…   (confirmação do webhook)
 // Meta → POST mensagens recebidas (assinadas com X-Hub-Signature-256)
-// Sistema (usuário logado) → POST { action: "status" | "send" | "setAi", workspaceId, ... }
+// Sistema (usuário logado) → POST { action: "status" | "send" | "setAi" | "setAttendant" | "simulate", workspaceId, ... }
+// Especialistas (coleção "attendants"): um agente treinado por benefício conduz a triagem com o roteiro dele.
 //
 // Fluxo: a mensagem do cliente entra na conversa (coleção "conversations"); se a IA estiver ativa, o Claude
 // responde, faz a triagem e, com os dados completos, registra o lead: contato, card no funil Marketing do CRM,
@@ -142,7 +143,9 @@ Regras éticas (Estatuto da OAB, Código de Ética e Provimento 205/2021 do CFOA
 - Se o assunto não for das áreas atendidas, explique com gentileza, registre o lead com a área "Outra" e diga que o advogado avalia se pode ajudar ou indicar um colega.
 - Use as informações da pessoa só para este atendimento.`;
 
-const TOOLS: Anthropic.Tool[] = [
+/** Ferramentas do agente. A de encaminhar só existe quando há especialistas ativos. */
+function buildTools(attendants: Doc[]): Anthropic.Tool[] {
+  const tools: Anthropic.Tool[] = [
   {
     name: "registrar_lead",
     description: "Registra a pessoa como possível cliente no sistema do escritório (contato, card no CRM e tarefa de retorno para o advogado). Use quando já souber o nome, a área e tiver um resumo do caso. Pode ser chamada de novo para atualizar os dados.",
@@ -157,8 +160,19 @@ const TOOLS: Anthropic.Tool[] = [
         resumo: { type: "string", description: "Resumo objetivo do caso para o advogado, em 3 a 6 frases" },
         urgencia: { type: "string", enum: ["baixa", "media", "alta"] },
         melhor_horario: { type: "string", description: "Melhor horário para retorno, ou vazio" },
+        beneficio: { type: "string", description: "Benefício ou assunto do especialista que atendeu, ou vazio" },
+        triagem: {
+          type: "array",
+          description: "Cada pergunta do roteiro de triagem com a resposta da pessoa ('não informado' se ela não respondeu). Vazio se não houver roteiro.",
+          items: {
+            type: "object",
+            properties: { pergunta: { type: "string" }, resposta: { type: "string" } },
+            required: ["pergunta", "resposta"],
+            additionalProperties: false,
+          },
+        },
       },
-      required: ["nome", "cidade_uf", "area", "assunto", "resumo", "urgencia", "melhor_horario"],
+      required: ["nome", "cidade_uf", "area", "assunto", "resumo", "urgencia", "melhor_horario", "beneficio", "triagem"],
       additionalProperties: false,
     },
   },
@@ -173,7 +187,52 @@ const TOOLS: Anthropic.Tool[] = [
       additionalProperties: false,
     },
   },
-];
+  ];
+  if (attendants.length) {
+    tools.push({
+      name: "encaminhar_especialista",
+      description: `Passa a conversa para o agente especialista no assunto da pessoa. Use assim que entender o assunto (ou se ele mudar). Depois disso, você passa a seguir o roteiro desse especialista. Especialistas disponíveis:\n${attendants.map((a) => `- ${a.id}: ${a.benefit}`).join("\n")}`,
+      strict: true,
+      input_schema: {
+        type: "object",
+        properties: { especialista: { type: "string", enum: attendants.map((a) => a.id) } },
+        required: ["especialista"],
+        additionalProperties: false,
+      },
+    });
+  }
+  return tools;
+}
+
+// ---------- especialistas ----------
+/** Escolhe o especialista: o que já conduz a conversa, o da campanha ou o que tiver mais palavras-chave nas mensagens. */
+function chooseAttendant(conv: Doc, campaign: Doc | undefined, attendants: Doc[]): Doc | undefined {
+  const byId = (id?: string) => (id ? attendants.find((a) => a.id === id) : undefined);
+  const current = byId(conv.attendantId) ?? byId(campaign?.attendantId);
+  if (current) return current;
+  const text = ` ${norm(conv.messages.filter((m: Msg) => m.from === "cliente").map((m: Msg) => m.text).join(" ")).replace(/[^a-z0-9]+/g, " ")} `;
+  const scored = attendants
+    .map((a) => ({ a, n: String(a.keywords ?? "").split(",").map((k) => norm(k).replace(/[^a-z0-9]+/g, " ").trim()).filter(Boolean).filter((k) => text.includes(` ${k} `)).length }))
+    .filter((x) => x.n > 0)
+    .sort((x, y) => y.n - x.n);
+  if (!scored.length || (scored[1] && scored[1].n === scored[0].n)) return undefined; // empate: a IA decide
+  return scored[0].a;
+}
+
+/** Texto que "treina" o agente no benefício (escrito pelo escritório na tela Agentes de atendimento). */
+function specialistPrompt(a: Doc): string {
+  const block = (title: string, text?: string) => (text && String(text).trim() ? `\n\n${title}\n${String(text).trim()}` : "");
+  return `ESPECIALISTA NESTE ATENDIMENTO: ${a.name} (${a.benefit}, área ${a.area}).
+Você está conduzindo agora um atendimento sobre ${a.benefit}. Siga as regras gerais acima e o roteiro abaixo.`
+    + block("Conhecimento de apoio (para entender o caso e fazer as perguntas certas; nunca use para dizer se a pessoa tem direito):", a.knowledge)
+    + block("Roteiro de triagem (uma pergunta por vez, com suas palavras; pule o que a pessoa já respondeu):", a.questions)
+    + block("Documentos que costumam ser úteis (cite de forma geral, no fim; a pessoa não deve enviar pelo chat):", a.documents)
+    + block("Use transferir_para_humano (ou registre com urgência alta, quando indicado) se:", a.redFlags)
+    + block("Perguntas frequentes com respostas aprovadas pelo escritório (use estas respostas):", a.faq)
+    + block("Orientações do escritório para este atendimento:", a.instructions)
+    + `\n\nAo usar registrar_lead, preencha "beneficio" com "${a.benefit}" e "triagem" com cada pergunta do roteiro e a resposta da pessoa ("não informado" se ela não respondeu).
+Se o assunto da pessoa for outro, use encaminhar_especialista (se houver um especialista adequado) ou siga a triagem geral.`;
+}
 
 /** Histórico da conversa no formato da API: cliente = user; IA e equipe = assistant; turnos seguidos do mesmo lado são unidos. */
 function toApiMessages(messages: Msg[]): Anthropic.MessageParam[] {
@@ -190,10 +249,23 @@ function toApiMessages(messages: Msg[]): Anthropic.MessageParam[] {
   return out;
 }
 
-interface Ctx { ws: string; conv: Doc; settings: Doc | null; campaign?: Doc }
+interface Ctx {
+  ws: string; conv: Doc; settings: Doc | null; campaign?: Doc; attendants: Doc[];
+  /** Simulação (tela de teste): nada é gravado; as ações ficam registradas aqui. */
+  simulation?: string[];
+}
 
 async function registerLead(ctx: Ctx, input: any): Promise<string> {
   const { ws, conv, settings, campaign } = ctx;
+  const triagem: { pergunta: string; resposta: string }[] = Array.isArray(input.triagem) ? input.triagem : [];
+  conv.lead = {
+    nome: input.nome, cidade: input.cidade_uf, area: input.area, assunto: input.assunto, resumo: input.resumo, urgencia: input.urgencia,
+    melhorHorario: input.melhor_horario, beneficio: input.beneficio || undefined, triagem: triagem.length ? triagem : undefined, at: nowIso(),
+  };
+  if (ctx.simulation) {
+    ctx.simulation.push(`Lead registrado (simulação): ${input.nome} · ${input.area} · ${input.assunto} · urgência ${input.urgencia}`);
+    return "Lead registrado. A equipe foi avisada.";
+  }
   const [contacts, users] = await Promise.all([getCollection(ws, "contacts"), getCollection(ws, "users")]);
   const taskTypes: any[] = settings?.taskTypes ?? [];
   const owner = users.find((u) => u.role === "Gestor" && u.active !== false) ?? users[0];
@@ -214,9 +286,11 @@ async function registerLead(ctx: Ctx, input: any): Promise<string> {
   const marketing = funnels.find((f) => norm(f.name) === "marketing") ?? funnels[0];
   const groups: any[] = settings?.actionGroups ?? [];
   const areaGroup = groups.find((g) => norm(g.name).startsWith(norm(input.area).slice(0, 6))) ?? groups[0];
-  const type = (settings?.actionTypes ?? []).find((t: any) => t.groupId === areaGroup?.id);
+  const types = (settings?.actionTypes ?? []).filter((t: any) => t.groupId === areaGroup?.id);
+  const ben = norm(input.beneficio || input.assunto || "");
+  const type = types.find((t: any) => ben && (ben.includes(norm(t.name)) || norm(t.name).includes(ben))) ?? types[0];
   const existingCard = conv.processId ? await getDoc(ws, "processes", conv.processId) : null;
-  const summary = `Lead do WhatsApp${campaign ? ` (campanha ${campaign.name})` : ""}. ${input.assunto}. Urgência: ${input.urgencia}. Retorno: ${input.melhor_horario || "não informado"}.\n${input.resumo}`;
+  const summary = `Lead do WhatsApp${campaign ? ` (campanha ${campaign.name})` : ""}. ${input.assunto}. Urgência: ${input.urgencia}. Retorno: ${input.melhor_horario || "não informado"}.\n${input.resumo}${triagem.length ? `\n\nTriagem${input.beneficio ? ` (${input.beneficio})` : ""}:\n${triagem.map((t) => `- ${t.pergunta} ${t.resposta}`).join("\n")}` : ""}`;
   const card: Doc = existingCard
     ? { ...existingCard, history: [...(existingCard.history ?? []), { id: rid("h"), date: nowIso(), text: `Triagem atualizada pela IA: ${summary}` }], unreadHistory: true }
     : {
@@ -243,17 +317,32 @@ async function registerLead(ctx: Ctx, input: any): Promise<string> {
   conv.processId = card.id;
   if (tasks[0]) conv.leadTaskId = tasks[0].id;
   conv.name = conv.name || input.nome;
-  conv.lead = { nome: input.nome, cidade: input.cidade_uf, area: input.area, assunto: input.assunto, resumo: input.resumo, urgencia: input.urgencia, melhorHorario: input.melhor_horario, at: nowIso() };
   return "Lead registrado. A equipe foi avisada.";
 }
 
 async function handOff(ctx: Ctx, motivo: string): Promise<string> {
+  if (ctx.simulation) {
+    ctx.simulation.push(`Passaria para a equipe: ${motivo}`);
+    ctx.conv.aiPaused = true;
+    return "Conversa transferida. Avise a pessoa que alguém da equipe vai responder em breve.";
+  }
   ctx.conv.aiPaused = true;
   ctx.conv.status = "humano";
   ctx.conv.handoffReason = motivo;
   ctx.conv.messages.push({ id: rid("m"), from: "sistema", text: `Conversa passada para a equipe: ${motivo}`, at: nowIso() } satisfies Msg);
   await put(ctx.ws, "notifications", [{ id: rid("n"), title: `WhatsApp: ${ctx.conv.name || ctx.conv.phone} precisa de atendimento humano (${motivo})`, createdAt: nowIso(), read: false, link: "/atendimento" }]);
   return "Conversa transferida. Avise a pessoa que alguém da equipe vai responder em breve.";
+}
+
+function routeTo(ctx: Ctx, id: string): string {
+  const a = ctx.attendants.find((x) => x.id === id);
+  if (!a) return "Especialista não encontrado. Siga a triagem geral.";
+  if (ctx.conv.attendantId !== a.id) {
+    ctx.conv.attendantId = a.id;
+    if (ctx.simulation) ctx.simulation.push(`Encaminhada para: ${a.name}`);
+    else ctx.conv.messages.push({ id: rid("m"), from: "sistema", text: `Atendimento direcionado para ${a.name}`, at: nowIso() } satisfies Msg);
+  }
+  return `Pronto. Agora você é o ${a.name}. Continue a conversa seguindo o roteiro dele, sem repetir o que a pessoa já respondeu e sem anunciar a troca.`;
 }
 
 /** Gera a resposta da IA (com até 4 rodadas de ferramentas) e devolve o texto para enviar. */
@@ -271,8 +360,17 @@ async function agentReply(ctx: Ctx): Promise<string> {
 
   const messages = toApiMessages(ctx.conv.messages);
   if (!messages.length) return "";
+  const tools = buildTools(ctx.attendants);
+  // Já tem especialista (conversa, campanha ou palavras-chave)? Ele conduz desde a primeira resposta.
+  const first = chooseAttendant(ctx.conv, ctx.campaign, ctx.attendants);
+  if (first && ctx.conv.attendantId !== first.id) routeTo(ctx, first.id);
   let finalText = "";
-  for (let round = 0; round < 4; round++) {
+  for (let round = 0; round < 5; round++) {
+    const specialist = ctx.attendants.find((a) => a.id === ctx.conv.attendantId);
+    const system: any[] = [{ type: "text", text: STATIC_PROMPT, cache_control: { type: "ephemeral" } }];
+    if (specialist) system.push({ type: "text", text: specialistPrompt(specialist), cache_control: { type: "ephemeral" } });
+    else if (ctx.attendants.length) system.push({ type: "text", text: "Ainda não há especialista neste atendimento. Descubra o assunto da pessoa e use encaminhar_especialista assim que possível." });
+    system.push({ type: "text", text: dynamic });
     const response = await client.beta.messages.create({
       model: MODEL,
       max_tokens: 16000,
@@ -280,11 +378,8 @@ async function agentReply(ctx: Ctx): Promise<string> {
       // @ts-ignore parâmetro de fallback do lado do servidor (forma "default"); a tipagem do SDK pode não ter
       fallbacks: "default",
       output_config: { effort: "low" },
-      system: [
-        { type: "text", text: STATIC_PROMPT, cache_control: { type: "ephemeral" } },
-        { type: "text", text: dynamic },
-      ],
-      tools: TOOLS,
+      system,
+      tools,
       messages,
     });
     if (response.stop_reason === "refusal") {
@@ -300,7 +395,10 @@ async function agentReply(ctx: Ctx): Promise<string> {
     for (const tu of toolUses) {
       let result: string;
       try {
-        result = tu.name === "registrar_lead" ? await registerLead(ctx, tu.input) : tu.name === "transferir_para_humano" ? await handOff(ctx, String(tu.input?.motivo ?? "")) : "Ferramenta desconhecida.";
+        result = tu.name === "registrar_lead" ? await registerLead(ctx, tu.input)
+          : tu.name === "transferir_para_humano" ? await handOff(ctx, String(tu.input?.motivo ?? ""))
+          : tu.name === "encaminhar_especialista" ? routeTo(ctx, String(tu.input?.especialista ?? ""))
+          : "Ferramenta desconhecida.";
         results.push({ type: "tool_result", tool_use_id: tu.id, content: result });
       } catch (e) {
         results.push({ type: "tool_result", tool_use_id: tu.id, content: `Erro: ${(e as Error).message}`, is_error: true });
@@ -315,6 +413,7 @@ async function agentReply(ctx: Ctx): Promise<string> {
 async function handleInbound(ws: string, value: any) {
   const settings = await getDoc(ws, "settings", "main");
   const campaigns = (await getCollection(ws, "campaigns")).filter((c) => c.status !== "encerrada");
+  const attendants = (await getCollection(ws, "attendants")).filter((a) => a.active !== false);
   const names = new Map((value.contacts ?? []).map((c: any) => [c.wa_id, c.profile?.name]));
 
   for (const m of value.messages ?? []) {
@@ -341,7 +440,7 @@ async function handleInbound(ws: string, value: any) {
     const aiOn = !conv.aiPaused && settings?.agent?.enabled !== false && env("ANTHROPIC_API_KEY");
     if (aiOn) {
       try {
-        const reply = await agentReply({ ws, conv, settings, campaign });
+        const reply = await agentReply({ ws, conv, settings, campaign, attendants });
         if (reply) {
           const waId = await waSend(phone, reply);
           conv.messages.push({ id: rid("m"), from: "ia", text: reply, at: nowIso(), waId } satisfies Msg);
@@ -408,8 +507,32 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Teste de um agente: conversa de mentira, nada é gravado nem enviado.
+    if (body.action === "simulate") {
+      if (!env("ANTHROPIC_API_KEY")) return json({ error: "Falta a chave da Anthropic (segredo ANTHROPIC_API_KEY)." }, 400);
+      const settings = await getDoc(ws, "settings", "main");
+      const all = await getCollection(ws, "attendants");
+      const attendants = all.filter((a) => a.active !== false || a.id === body.attendantId);
+      const history = (Array.isArray(body.messages) ? body.messages : []).slice(-MAX_HISTORY);
+      const conv: Doc = {
+        id: "simulacao", phone: "5561900000000", name: "", status: "ia", aiPaused: false, attendantId: body.attendantId || undefined,
+        messages: history.map((m: any) => ({ id: rid("m"), from: m.from === "cliente" ? "cliente" : "ia", text: String(m.text ?? "").slice(0, 4000), at: nowIso() })),
+      };
+      const simulation: string[] = [];
+      const reply = await agentReply({ ws, conv, settings, attendants, simulation });
+      return json({ reply, events: simulation, attendantId: conv.attendantId ?? null, lead: conv.lead ?? null, handedOff: !!conv.aiPaused });
+    }
+
     const conv = await getDoc(ws, "conversations", String(body.conversationId ?? ""));
     if (!conv) return json({ error: "Conversa não encontrada." }, 404);
+
+    if (body.action === "setAttendant") {
+      const a = body.attendantId ? (await getCollection(ws, "attendants")).find((x) => x.id === body.attendantId) : undefined;
+      conv.attendantId = a?.id;
+      conv.messages.push({ id: rid("m"), from: "sistema", text: a ? `Atendimento direcionado para ${a.name}` : "Atendimento voltou para a triagem geral.", at: nowIso() } satisfies Msg);
+      await put(ws, "conversations", [conv]);
+      return json({ ok: true });
+    }
 
     if (body.action === "setAi") {
       conv.aiPaused = !body.enabled;

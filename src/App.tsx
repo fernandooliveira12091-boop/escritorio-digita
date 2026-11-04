@@ -10,6 +10,7 @@ import Contatos from "./pages/Contatos";
 import { Perfil, Suporte } from "./pages/Conta";
 import Crm from "./pages/Crm";
 import Contratos from "./pages/Contratos";
+import AgentesAtendimento from "./pages/AgentesAtendimento";
 import Financeiro from "./pages/Financeiro";
 import Home from "./pages/Home";
 import Intimacoes from "./pages/Intimacoes";
@@ -33,6 +34,7 @@ export default function App() {
             <Route path="/crm" element={<Crm />} />
             <Route path="/contratos" element={<Contratos />} />
             <Route path="/atendimento" element={<Atendimento />} />
+            <Route path="/atendimento/agentes" element={<AgentesAtendimento />} />
             <Route path="/campanhas" element={<Campanhas />} />
             <Route path="/contatos" element={<Contatos />} />
             <Route path="/processos" element={<Processos />} />

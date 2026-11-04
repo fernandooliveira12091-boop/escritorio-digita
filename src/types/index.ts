@@ -295,6 +295,8 @@ export interface Campaign {
   status: "ativa" | "pausada" | "encerrada";
   /** IDs dos anúncios da Meta (clique para WhatsApp), separados por vírgula. */
   adIds: string;
+  /** Agente especialista que atende quem chega por esta campanha (vazio = automático). */
+  attendantId?: string;
   notes: string;
   createdAt: string;
 }
@@ -324,8 +326,42 @@ export interface Conversation {
   contactId?: string;
   processId?: string;
   handoffReason?: string;
-  lead?: { nome: string; cidade: string; area: string; assunto: string; resumo: string; urgencia: "baixa" | "media" | "alta"; melhorHorario: string; at: string };
+  /** Agente especialista que está conduzindo a conversa. */
+  attendantId?: string;
+  lead?: {
+    nome: string; cidade: string; area: string; assunto: string; resumo: string; urgencia: "baixa" | "media" | "alta"; melhorHorario: string; at: string;
+    beneficio?: string;
+    /** Respostas do roteiro de triagem do especialista. */
+    triagem?: { pergunta: string; resposta: string }[];
+  };
   createdAt: string;
+}
+
+/**
+ * Agente de atendimento especialista em um benefício ou assunto (ex.: Salário-maternidade).
+ * O "treino" são os textos abaixo, escritos pelo escritório e enviados à IA a cada conversa.
+ */
+export interface Attendant {
+  id: string;
+  name: string;
+  benefit: string;
+  area: "Previdenciário" | "Família" | "Cível" | "Outra";
+  /** Palavras que direcionam a conversa para este agente, separadas por vírgula. */
+  keywords: string;
+  /** O que o agente precisa saber sobre o benefício para fazer as perguntas certas. */
+  knowledge: string;
+  /** Roteiro de triagem: uma pergunta por linha. */
+  questions: string;
+  documents: string;
+  /** Situações em que passa a conversa para a equipe. */
+  redFlags: string;
+  /** Perguntas frequentes com a resposta aprovada pelo escritório (P: / R:). */
+  faq: string;
+  instructions: string;
+  active: boolean;
+  color: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface AgentSettings {

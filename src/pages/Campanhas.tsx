@@ -21,7 +21,7 @@ function suggestCode(name: string, taken: string[]) {
 }
 
 export default function Campanhas() {
-  const { campaigns, conversations, processes, settings, upsert, remove } = useStore();
+  const { campaigns, conversations, processes, settings, attendants, upsert, remove } = useStore();
   const showToast = useUi((s) => s.showToast);
   const [form, setForm] = useState<Campaign | null>(null);
   const [confirmDel, setConfirmDel] = useState(false);
@@ -123,6 +123,7 @@ export default function Campanhas() {
             <Field label="Início">{(id) => <input id={id} type="date" className="input" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} />}</Field>
             <Field label="Fim">{(id) => <input id={id} type="date" className="input" value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} />}</Field>
             <Field label="Situação">{(id) => <select id={id} className="input" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as Campaign["status"] })}>{Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>}</Field>
+            <Field label="Agente que atende">{(id) => <select id={id} className="input" value={form.attendantId ?? ""} onChange={(e) => setForm({ ...form, attendantId: e.target.value || undefined })}><option value="">Automático (pelo assunto)</option>{attendants.filter((a) => a.active || a.id === form.attendantId).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select>}</Field>
             <Field label="IDs dos anúncios da Meta (opcional)">{(id) => <input id={id} className="input font-mono" placeholder="Separados por vírgula" value={form.adIds} onChange={(e) => setForm({ ...form, adIds: e.target.value })} />}</Field>
             <Field label="Observações" className="sm:col-span-2">{(id) => <textarea id={id} rows={2} className="input" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />}</Field>
           </div>
