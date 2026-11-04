@@ -147,10 +147,11 @@ function WhatsappAgent() {
   const [status, setStatus] = useState<WhatsappStatus | null>(null);
   const [checking, setChecking] = useState(false);
   const [pin, setPin] = useState("");
+  const [waba, setWaba] = useState("");
   const [steps, setSteps] = useState<string[]>([]);
   const register = async () => {
     setChecking(true);
-    try { const r = await registerWhatsappNumber(pin); setSteps(r.steps); setStatus((s) => (s ? { ...s, phone: r.phone, phoneError: r.phoneError } : s)); setPin(""); showToast("Número ativado"); }
+    try { const r = await registerWhatsappNumber(pin, waba); setSteps(r.steps); setStatus((s) => (s ? { ...s, phone: r.phone, phoneError: r.phoneError } : s)); setPin(""); showToast(pin ? "Número ativado" : "App ligado à conta do WhatsApp"); }
     catch (e) { showToast((e as Error).message); } finally { setChecking(false); }
   };
   const set = (c: Partial<AgentSettings>) => updateSettings({ agent: { ...agent, ...c } });
@@ -202,8 +203,10 @@ function WhatsappAgent() {
                 <p className="muted">Use quando o número estiver “Pendente”. Escolha um PIN de 6 números e guarde: é a confirmação em duas etapas do número, e a Meta pode pedir de novo no futuro.</p>
                 <div className="flex flex-wrap gap-2">
                   <label className="w-40"><span className="sr-only">PIN de 6 números</span><input className="input font-mono tracking-widest" inputMode="numeric" maxLength={6} placeholder="PIN (6 números)" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))} /></label>
-                  <button className="btn-primary" disabled={checking || pin.length !== 6} onClick={register}>Ativar número</button>
+                  <label className="w-56"><span className="sr-only">ID da conta do WhatsApp</span><input className="input font-mono" inputMode="numeric" placeholder="ID da conta do WhatsApp" value={waba} onChange={(e) => setWaba(e.target.value.replace(/\D/g, ""))} /></label>
+                  <button className="btn-primary" disabled={checking || (pin.length !== 6 && !(pin === "" && waba))} onClick={register}>{pin ? "Ativar número" : "Ligar app à conta"}</button>
                 </div>
+                <p className="muted text-xs">ID da conta do WhatsApp: no Gerenciador do WhatsApp, clique no nome da conta no topo; é o número de “Identificação da conta”. Com o número já ativo, deixe o PIN em branco e use só o ID para ligar o app.</p>
                 {steps.length > 0 && <ul className="list-disc pl-5 text-xs">{steps.map((s, i) => <li key={i}>{s}</li>)}</ul>}
               </div>
             )}

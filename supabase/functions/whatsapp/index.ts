@@ -571,21 +571,25 @@ Deno.serve(async (req) => {
     if (body.action === "register") {
       if (!env("WHATSAPP_TOKEN") || !env("WHATSAPP_PHONE_NUMBER_ID")) return json({ error: "Cadastre antes os segredos WHATSAPP_TOKEN e WHATSAPP_PHONE_NUMBER_ID." }, 400);
       const pin = String(body.pin ?? "").replace(/\D/g, "");
-      if (pin.length !== 6) return json({ error: "O PIN precisa ter 6 números." }, 400);
+      const wabaId = String(body.wabaId ?? "").replace(/\D/g, "");
+      if (pin && pin.length !== 6) return json({ error: "O PIN precisa ter 6 números." }, 400);
+      if (!pin && !wabaId) return json({ error: "Informe o PIN de 6 números." }, 400);
       const steps: string[] = [];
-      try {
-        await graph(`${env("WHATSAPP_PHONE_NUMBER_ID")}/register`, { method: "POST", body: JSON.stringify({ messaging_product: "whatsapp", pin }) });
-        steps.push("Número registrado na API.");
-      } catch (e) {
-        return json({ error: `A Meta não registrou o número: ${(e as Error).message}` }, 400);
+      if (pin) {
+        try {
+          await graph(`${env("WHATSAPP_PHONE_NUMBER_ID")}/register`, { method: "POST", body: JSON.stringify({ messaging_product: "whatsapp", pin }) });
+          steps.push("Número registrado na API.");
+        } catch (e) {
+          return json({ error: `A Meta não registrou o número: ${(e as Error).message}` }, 400);
+        }
       }
       try {
-        const ids = await wabaIds();
+        const ids = wabaId ? [wabaId] : await wabaIds();
         for (const id of ids) {
           await graph(`${id}/subscribed_apps`, { method: "POST", body: "{}" });
           steps.push(`App ligado à conta do WhatsApp ${id} (mensagens vão chegar no sistema).`);
         }
-        if (!ids.length) steps.push("Não encontrei a conta do WhatsApp no token: confira se o usuário do sistema tem acesso a ela.");
+        if (!ids.length) steps.push("Falta ligar o app à conta do WhatsApp: informe o ID da conta no campo abaixo e clique em Ligar.");
       } catch (e) {
         steps.push(`Não consegui ligar o app à conta do WhatsApp: ${(e as Error).message}`);
       }

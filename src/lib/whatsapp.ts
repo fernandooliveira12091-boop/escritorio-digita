@@ -19,7 +19,7 @@ export interface WhatsappStatus {
 
 export const whatsappStatus = () => call<WhatsappStatus>({ action: "status" });
 /** Registra o número na API com o PIN de 6 dígitos e liga o app à conta do WhatsApp. */
-export const registerWhatsappNumber = (pin: string) => call<WhatsappStatus & { steps: string[] }>({ action: "register", pin });
+export const registerWhatsappNumber = (pin: string, wabaId = "") => call<WhatsappStatus & { steps: string[] }>({ action: "register", pin, wabaId });
 export const sendWhatsapp = (conversationId: string, text: string) => call<{ ok: true }>({ action: "send", conversationId, text });
 export const setConversationAi = (conversationId: string, enabled: boolean) => call<{ ok: true }>({ action: "setAi", conversationId, enabled });
 

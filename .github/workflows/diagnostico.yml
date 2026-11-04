@@ -4,6 +4,10 @@ name: Diagnóstico do WhatsApp
 
 on:
   workflow_dispatch:
+    inputs:
+      waba_id:
+        description: "ID da conta do WhatsApp (opcional)"
+        required: false
 
 permissions:
   contents: read
@@ -32,7 +36,7 @@ jobs:
 
       - name: App assinado nas contas do WhatsApp
         run: |
-          for waba in $(curl -s "$GRAPH/debug_token?input_token=$WHATSAPP_TOKEN&access_token=$WHATSAPP_TOKEN" | jq -r '[.data.granular_scopes[]? | select(.scope|startswith("whatsapp")) | .target_ids[]?] | unique | .[]'); do
+          for waba in ${{ inputs.waba_id }} $(curl -s "$GRAPH/debug_token?input_token=$WHATSAPP_TOKEN&access_token=$WHATSAPP_TOKEN" | jq -r '[.data.granular_scopes[]? | select(.scope|startswith("whatsapp")) | .target_ids[]?] | unique | .[]'); do
             echo "Conta $waba:"
             curl -s "$GRAPH/$waba/subscribed_apps?access_token=$WHATSAPP_TOKEN" | jq '{apps: [.data[]?.whatsapp_business_api_data | {id, name}], erro: .error.message}'
             curl -s "$GRAPH/$waba/phone_numbers?fields=display_phone_number,status&access_token=$WHATSAPP_TOKEN" | jq '{numeros: [.data[]? | {display_phone_number, status}], erro: .error.message}'
