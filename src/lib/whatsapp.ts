@@ -13,9 +13,13 @@ export interface WhatsappStatus {
   workspaceOk: boolean;
   workspaceId?: string;
   webhookUrl: string;
+  phone?: { number?: string; name?: string; status?: string; nameStatus?: string; quality?: string; codeStatus?: string };
+  phoneError?: string;
 }
 
 export const whatsappStatus = () => call<WhatsappStatus>({ action: "status" });
+/** Registra o número na API com o PIN de 6 dígitos e liga o app à conta do WhatsApp. */
+export const registerWhatsappNumber = (pin: string) => call<WhatsappStatus & { steps: string[] }>({ action: "register", pin });
 export const sendWhatsapp = (conversationId: string, text: string) => call<{ ok: true }>({ action: "send", conversationId, text });
 export const setConversationAi = (conversationId: string, enabled: boolean) => call<{ ok: true }>({ action: "setAi", conversationId, enabled });
 

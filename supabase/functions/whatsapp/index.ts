@@ -62,6 +62,17 @@ async function resolveWorkspace(): Promise<string | null> {
 }
 
 // ---------- WhatsApp Cloud API ----------
+/** Situação do número na Meta, para a tela de Configurações. */
+async function phoneInfo(): Promise<Record<string, unknown>> {
+  if (!env("WHATSAPP_TOKEN") || !env("WHATSAPP_PHONE_NUMBER_ID")) return {};
+  try {
+    const p = await graph(`${env("WHATSAPP_PHONE_NUMBER_ID")}?fields=display_phone_number,verified_name,status,name_status,quality_rating,code_verification_status`);
+    return { phone: { number: p.display_phone_number, name: p.verified_name, status: p.status, nameStatus: p.name_status, quality: p.quality_rating, codeStatus: p.code_verification_status } };
+  } catch (e) {
+    return { phoneError: (e as Error).message };
+  }
+}
+
 async function waSend(to: string, text: string) {
   const res = await fetch(`${GRAPH}/${env("WHATSAPP_PHONE_NUMBER_ID")}/messages`, {
     method: "POST",
@@ -72,6 +83,24 @@ async function waSend(to: string, text: string) {
   if (!res.ok) throw new Error(body?.error?.message ?? `WhatsApp respondeu ${res.status}`);
   return body?.messages?.[0]?.id as string | undefined;
 }
+/** Chamada à API da Meta com o token do escritório. */
+async function graph(path: string, init: RequestInit = {}): Promise<any> {
+  const sep = path.includes("?") ? "&" : "?";
+  const url = init.method === "POST" ? `${GRAPH}/${path}` : `${GRAPH}/${path}${sep}access_token=${encodeURIComponent(env("WHATSAPP_TOKEN"))}`;
+  const res = await fetch(url, { ...init, headers: { Authorization: `Bearer ${env("WHATSAPP_TOKEN")}`, "Content-Type": "application/json", ...(init.headers ?? {}) } });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data?.error) throw new Error(data?.error?.error_user_msg || data?.error?.message || `Meta respondeu ${res.status}`);
+  return data;
+}
+
+/** Contas do WhatsApp (WABA) que o token pode administrar, lidas do próprio token. */
+async function wabaIds(): Promise<string[]> {
+  const d = await graph(`debug_token?input_token=${encodeURIComponent(env("WHATSAPP_TOKEN"))}`);
+  const scopes: any[] = d?.data?.granular_scopes ?? [];
+  const ids = scopes.filter((s) => s.scope === "whatsapp_business_management" || s.scope === "whatsapp_business_messaging").flatMap((s) => s.target_ids ?? []);
+  return [...new Set(ids.map(String))];
+}
+
 async function waMarkRead(messageId: string) {
   await fetch(`${GRAPH}/${env("WHATSAPP_PHONE_NUMBER_ID")}/messages`, {
     method: "POST",
@@ -512,6 +541,7 @@ Deno.serve(async (req) => {
         anthropic, anthropicError, token: !!env("WHATSAPP_TOKEN"), phoneNumberId: !!env("WHATSAPP_PHONE_NUMBER_ID"),
         appSecret: !!env("WHATSAPP_APP_SECRET"), verifyToken: !!env("WHATSAPP_VERIFY_TOKEN"), workspaceOk: target === ws, workspaceId: ws,
         webhookUrl: `${env("SUPABASE_URL")}/functions/v1/whatsapp`,
+        ...(await phoneInfo()),
       });
     }
 
@@ -535,6 +565,31 @@ Deno.serve(async (req) => {
         return json({ error: st === 401 ? "A Anthropic recusou a chave da IA (ANTHROPIC_API_KEY). Crie uma chave nova no console da Anthropic, atualize o segredo no GitHub e rode o workflow “Configurar Supabase”." : st === 400 && /credit/i.test(String((e as Error).message)) ? "A conta da Anthropic está sem créditos (console.anthropic.com → Billing)." : `A IA não respondeu: ${(e as Error).message}` }, 400);
       }
       return json({ reply, events: simulation, attendantId: conv.attendantId ?? null, lead: conv.lead ?? null, handedOff: !!conv.aiPaused });
+    }
+
+    // Ativa o número na API (status "Pendente" → "Conectado") e liga o app à conta do WhatsApp para receber mensagens.
+    if (body.action === "register") {
+      if (!env("WHATSAPP_TOKEN") || !env("WHATSAPP_PHONE_NUMBER_ID")) return json({ error: "Cadastre antes os segredos WHATSAPP_TOKEN e WHATSAPP_PHONE_NUMBER_ID." }, 400);
+      const pin = String(body.pin ?? "").replace(/\D/g, "");
+      if (pin.length !== 6) return json({ error: "O PIN precisa ter 6 números." }, 400);
+      const steps: string[] = [];
+      try {
+        await graph(`${env("WHATSAPP_PHONE_NUMBER_ID")}/register`, { method: "POST", body: JSON.stringify({ messaging_product: "whatsapp", pin }) });
+        steps.push("Número registrado na API.");
+      } catch (e) {
+        return json({ error: `A Meta não registrou o número: ${(e as Error).message}` }, 400);
+      }
+      try {
+        const ids = await wabaIds();
+        for (const id of ids) {
+          await graph(`${id}/subscribed_apps`, { method: "POST", body: "{}" });
+          steps.push(`App ligado à conta do WhatsApp ${id} (mensagens vão chegar no sistema).`);
+        }
+        if (!ids.length) steps.push("Não encontrei a conta do WhatsApp no token: confira se o usuário do sistema tem acesso a ela.");
+      } catch (e) {
+        steps.push(`Não consegui ligar o app à conta do WhatsApp: ${(e as Error).message}`);
+      }
+      return json({ ok: true, steps, ...(await phoneInfo()) });
     }
 
     const conv = await getDoc(ws, "conversations", String(body.conversationId ?? ""));

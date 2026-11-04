@@ -4,7 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import { Avatar, Field, Modal, PageHeader, Tabs, Toggle } from "../components/ui/basics";
 import { DataTable, type Column } from "../components/ui/DataTable";
 import { fmtDate, uid } from "../lib/format";
-import { whatsappStatus, type WhatsappStatus } from "../lib/whatsapp";
+import { registerWhatsappNumber, whatsappStatus, type WhatsappStatus } from "../lib/whatsapp";
 import { cloudMode, siteUrl } from "../lib/supabase";
 import { inviteEmail } from "../store/sync";
 import { useUi } from "../store/ui";
@@ -146,6 +146,13 @@ function WhatsappAgent() {
   const agent = { ...DEFAULT_AGENT, ...settings.agent };
   const [status, setStatus] = useState<WhatsappStatus | null>(null);
   const [checking, setChecking] = useState(false);
+  const [pin, setPin] = useState("");
+  const [steps, setSteps] = useState<string[]>([]);
+  const register = async () => {
+    setChecking(true);
+    try { const r = await registerWhatsappNumber(pin); setSteps(r.steps); setStatus((s) => (s ? { ...s, phone: r.phone, phoneError: r.phoneError } : s)); setPin(""); showToast("Número ativado"); }
+    catch (e) { showToast((e as Error).message); } finally { setChecking(false); }
+  };
   const set = (c: Partial<AgentSettings>) => updateSettings({ agent: { ...agent, ...c } });
   const check = async () => {
     setChecking(true);
@@ -180,6 +187,24 @@ function WhatsappAgent() {
               <div className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
                 Para ligar o número a este escritório, crie no GitHub o segredo <b className="font-mono">WHATSAPP_WORKSPACE_ID</b> com o código abaixo e rode o workflow “Configurar Supabase”.
                 <input className="input mt-2 font-mono text-xs" readOnly value={status.workspaceId} onFocus={(e) => e.target.select()} aria-label="Código deste escritório" />
+              </div>
+            )}
+            {status.phone && (
+              <div className="rounded-lg border border-line px-3 py-2 text-sm dark:border-white/10">
+                <p><b>{status.phone.number}</b> · {status.phone.name}</p>
+                <p className="muted">Situação na Meta: <b className={status.phone.status === "CONNECTED" ? "text-green-600" : "text-amber-600"}>{status.phone.status === "CONNECTED" ? "Conectado" : status.phone.status === "PENDING" ? "Pendente (falta ativar)" : status.phone.status}</b>{status.phone.nameStatus ? ` · nome: ${status.phone.nameStatus === "APPROVED" ? "aprovado" : status.phone.nameStatus === "PENDING_REVIEW" ? "em análise" : status.phone.nameStatus}` : ""}{status.phone.quality ? ` · qualidade: ${status.phone.quality}` : ""}</p>
+              </div>
+            )}
+            {status.phoneError && <p className="text-sm text-red-600">A Meta não informou o número: {status.phoneError}</p>}
+            {status.token && status.phoneNumberId && (
+              <div className="space-y-2 rounded-lg bg-card p-3 text-sm dark:bg-white/5">
+                <p className="font-medium">Ativar o número na API</p>
+                <p className="muted">Use quando o número estiver “Pendente”. Escolha um PIN de 6 números e guarde: é a confirmação em duas etapas do número, e a Meta pode pedir de novo no futuro.</p>
+                <div className="flex flex-wrap gap-2">
+                  <label className="w-40"><span className="sr-only">PIN de 6 números</span><input className="input font-mono tracking-widest" inputMode="numeric" maxLength={6} placeholder="PIN (6 números)" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))} /></label>
+                  <button className="btn-primary" disabled={checking || pin.length !== 6} onClick={register}>Ativar número</button>
+                </div>
+                {steps.length > 0 && <ul className="list-disc pl-5 text-xs">{steps.map((s, i) => <li key={i}>{s}</li>)}</ul>}
               </div>
             )}
             <div className="text-sm"><span className="label">Endereço do webhook (cole no painel da Meta)</span><input className="input font-mono text-xs" readOnly value={status.webhookUrl} onFocus={(e) => e.target.select()} aria-label="Endereço do webhook" /></div>
