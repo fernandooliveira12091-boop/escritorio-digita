@@ -57,6 +57,17 @@ jobs:
             -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H "Content-Type: application/json" \
             -d "$(jq -n --arg q "$q" '{query: $q}')" | jq .
 
+      - name: Mensagens por origem (só contagens)
+        run: |
+          q="select m->>'from' as de, count(*) as qtd, max(m->>'at') as ultima from records r cross join jsonb_array_elements(r.data->'messages') m where r.collection='conversations' and r.id like 'wa%' group by 1 order by 1;"
+          curl -s -X POST "https://api.supabase.com/v1/projects/$PROJECT_REF/database/query" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+            -d "$(jq -n --arg q "$q" '{query: $q}')" | jq .
+          q2="select r.data->>'status' as status, r.data->>'attendantId' as agente, (r.data->'lead') is not null as lead_registrado, left(regexp_replace(coalesce((select m->>'text' from jsonb_array_elements(r.data->'messages') m where m->>'from'='sistema' order by m->>'at' desc limit 1),''), '[0-9]{6,}', '…', 'g'), 160) as ultimo_aviso_do_sistema from records r where r.collection='conversations' and r.id like 'wa%';"
+          curl -s -X POST "https://api.supabase.com/v1/projects/$PROJECT_REF/database/query" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+            -d "$(jq -n --arg q "$q2" '{query: $q}')" | jq .
+
       - name: Chamadas recentes à função whatsapp (última hora)
         run: |
           start=$(date -u -d '-1 hour' +%Y-%m-%dT%H:%M:%SZ); end=$(date -u +%Y-%m-%dT%H:%M:%SZ)
