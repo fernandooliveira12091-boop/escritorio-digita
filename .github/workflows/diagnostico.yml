@@ -38,6 +38,8 @@ jobs:
         run: |
           for waba in ${{ inputs.waba_id }} $(curl -s "$GRAPH/debug_token?input_token=$WHATSAPP_TOKEN&access_token=$WHATSAPP_TOKEN" | jq -r '[.data.granular_scopes[]? | select(.scope|startswith("whatsapp")) | .target_ids[]?] | unique | .[]'); do
             echo "Conta $waba:"
+            curl -s "$GRAPH/$waba?fields=name,account_review_status,business_verification_status,ownership_type,currency,message_template_namespace,health_status&access_token=$WHATSAPP_TOKEN" | jq '{conta: .name, revisao_da_conta: .account_review_status, verificacao: .business_verification_status, saude: .health_status, erro: .error.message}'
+            curl -s "$GRAPH/$WHATSAPP_PHONE_NUMBER_ID?fields=health_status,account_mode,is_official_business_account,messaging_limit_tier,certificate,new_name_status&access_token=$WHATSAPP_TOKEN" | jq '{numero_saude: .health_status, modo: .account_mode, limite: .messaging_limit_tier, tem_certificado: (.certificate != null), erro: .error.message}'
             curl -s "$GRAPH/$waba/subscribed_apps?access_token=$WHATSAPP_TOKEN" | jq '{apps: [.data[]?.whatsapp_business_api_data | {id, name}], erro: .error.message}'
             curl -s "$GRAPH/$waba/phone_numbers?fields=display_phone_number,status&access_token=$WHATSAPP_TOKEN" | jq '{numeros: [.data[]? | {display_phone_number, status}], erro: .error.message}'
           done

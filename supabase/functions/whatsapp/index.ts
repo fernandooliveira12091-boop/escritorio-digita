@@ -89,7 +89,11 @@ async function graph(path: string, init: RequestInit = {}): Promise<any> {
   const url = init.method === "POST" ? `${GRAPH}/${path}` : `${GRAPH}/${path}${sep}access_token=${encodeURIComponent(env("WHATSAPP_TOKEN"))}`;
   const res = await fetch(url, { ...init, headers: { Authorization: `Bearer ${env("WHATSAPP_TOKEN")}`, "Content-Type": "application/json", ...(init.headers ?? {}) } });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok || data?.error) throw new Error(data?.error?.error_user_msg || data?.error?.message || `Meta respondeu ${res.status}`);
+  if (!res.ok || data?.error) {
+    const e = data?.error ?? {};
+    const detail = [e.error_user_title, e.error_user_msg, e.error_data?.details].filter(Boolean).join(" · ");
+    throw new Error(`${e.message || `Meta respondeu ${res.status}`}${e.code ? ` [código ${e.code}${e.error_subcode ? `/${e.error_subcode}` : ""}]` : ""}${detail ? ` – ${detail}` : ""}`);
+  }
   return data;
 }
 
