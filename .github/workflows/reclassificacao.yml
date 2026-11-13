@@ -36,9 +36,14 @@ jobs:
             'intimations', coalesce((select jsonb_agg(jsonb_build_object('processId', data->'processId', 'text', left(data->>'text', 4000)))
               from records where workspace_id = '$WS' and collection = 'intimations' and data->>'processId' is not null), '[]'::jsonb)
           ) as dados;"
-          curl -sf -X POST "https://api.supabase.com/v1/projects/$PROJECT_REF/database/query" \
+          status=$(curl -s -o "$RUNNER_TEMP/resp.json" -w "%{http_code}" -X POST "https://api.supabase.com/v1/projects/$PROJECT_REF/database/query" \
             -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H "Content-Type: application/json" \
-            -d "$(jq -n --arg q "$q" '{query: $q}')" | jq '.[0].dados' > "$RUNNER_TEMP/dados.json"
+            -d "$(jq -n --arg q "$q" '{query: $q}')")
+          if [ "$status" -ge 300 ]; then
+            echo "::error::O Supabase recusou a leitura ($status): $(jq -r '.message // "erro"' "$RUNNER_TEMP/resp.json"). Se for token inválido, gere outro em supabase.com/dashboard/account/tokens e atualize o segredo SUPABASE_ACCESS_TOKEN."
+            rm -f "$RUNNER_TEMP/resp.json"; exit 1
+          fi
+          jq '.[0].dados' "$RUNNER_TEMP/resp.json" > "$RUNNER_TEMP/dados.json"; rm -f "$RUNNER_TEMP/resp.json"
           jq '{processos: (.processes | length), intimacoes: (.intimations | length), tipos_na_tabela: (.settings.actionTypes | length)}' "$RUNNER_TEMP/dados.json"
 
       - name: Simular (só contagens)
