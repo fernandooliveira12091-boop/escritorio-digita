@@ -6,6 +6,11 @@ name: Reclassificação de tipos (simulação)
 
 on:
   workflow_dispatch:
+    inputs:
+      confirmar:
+        description: "Para GRAVAR as linhas marcadas, digite APLICAR. Vazio = só simulação."
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -47,8 +52,19 @@ jobs:
           jq '{processos: (.processes | length), intimacoes: (.intimations | length), tipos_na_tabela: (.settings.actionTypes | length)}' "$RUNNER_TEMP/dados.json"
 
       - name: Simular (só contagens)
+        if: inputs.confirmar != 'APLICAR'
         run: node --experimental-strip-types scripts/reclassificar-tipos.ts "$RUNNER_TEMP/dados.json" --resumo
+
+      - name: Aplicar as linhas marcadas (só com confirmar = APLICAR)
+        if: inputs.confirmar == 'APLICAR'
+        run: |
+          node --experimental-strip-types scripts/reclassificar-tipos.ts "$RUNNER_TEMP/dados.json" --resumo --sql "$RUNNER_TEMP/aplicar.sql" "$WS"
+          status=$(curl -s -o "$RUNNER_TEMP/resp.json" -w "%{http_code}" -X POST "https://api.supabase.com/v1/projects/$PROJECT_REF/database/query" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+            -d "$(jq -n --rawfile q "$RUNNER_TEMP/aplicar.sql" '{query: $q}')")
+          if [ "$status" -ge 300 ]; then echo "::error::Gravação recusada ($status): $(jq -r '.message // "erro"' "$RUNNER_TEMP/resp.json")"; exit 1; fi
+          jq '.[0]' "$RUNNER_TEMP/resp.json"
 
       - name: Apagar os dados do runner
         if: always()
-        run: rm -f "$RUNNER_TEMP/dados.json"
+        run: rm -f "$RUNNER_TEMP/dados.json" "$RUNNER_TEMP/aplicar.sql" "$RUNNER_TEMP/resp.json"
