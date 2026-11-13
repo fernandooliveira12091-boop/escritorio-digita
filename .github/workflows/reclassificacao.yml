@@ -51,12 +51,22 @@ jobs:
           jq '.[0].dados' "$RUNNER_TEMP/resp.json" > "$RUNNER_TEMP/dados.json"; rm -f "$RUNNER_TEMP/resp.json"
           jq '{processos: (.processes | length), intimacoes: (.intimations | length), tipos_na_tabela: (.settings.actionTypes | length)}' "$RUNNER_TEMP/dados.json"
 
+      - name: Modo (simular ou aplicar)
+        id: modo
+        env:
+          CONFIRMAR: ${{ inputs.confirmar }}
+        run: |
+          # Aceita "aplicar" em maiúsculas ou minúsculas e ignora espaços.
+          v=$(printf '%s' "$CONFIRMAR" | tr -d '[:space:]' | tr '[:lower:]' '[:upper:]')
+          echo "Valor recebido no campo confirmar: '${CONFIRMAR}'"
+          if [ "$v" = "APLICAR" ]; then echo "modo=aplicar" >> "$GITHUB_OUTPUT"; echo "Modo: APLICAR (vai gravar)"; else echo "modo=simular" >> "$GITHUB_OUTPUT"; echo "Modo: só simulação (para gravar, digite APLICAR no campo confirmar)"; fi
+
       - name: Simular (só contagens)
-        if: inputs.confirmar != 'APLICAR'
+        if: steps.modo.outputs.modo != 'aplicar'
         run: node --experimental-strip-types scripts/reclassificar-tipos.ts "$RUNNER_TEMP/dados.json" --resumo
 
       - name: Aplicar as linhas marcadas (só com confirmar = APLICAR)
-        if: inputs.confirmar == 'APLICAR'
+        if: steps.modo.outputs.modo == 'aplicar'
         run: |
           node --experimental-strip-types scripts/reclassificar-tipos.ts "$RUNNER_TEMP/dados.json" --resumo --sql "$RUNNER_TEMP/aplicar.sql" "$WS"
           status=$(curl -s -o "$RUNNER_TEMP/resp.json" -w "%{http_code}" -X POST "https://api.supabase.com/v1/projects/$PROJECT_REF/database/query" \
