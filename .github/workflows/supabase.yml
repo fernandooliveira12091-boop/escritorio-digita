@@ -35,6 +35,17 @@ jobs:
             echo "::error::Falta o segredo SUPABASE_ACCESS_TOKEN (Settings › Secrets and variables › Actions)."
             exit 1
           fi
+          # Só o formato (nunca o valor): ajuda a achar segredo trocado ou colado com espaço.
+          t="$SUPABASE_ACCESS_TOKEN"
+          case "$t" in
+            sbp_*) echo "SUPABASE_ACCESS_TOKEN: formato de token do Supabase (sbp_…), ${#t} caracteres." ;;
+            sk-ant-*) echo "::error::SUPABASE_ACCESS_TOKEN contém uma chave da Anthropic (sk-ant-…), não um token do Supabase."; exit 1 ;;
+            *) echo "::error::SUPABASE_ACCESS_TOKEN não começa com sbp_ (${#t} caracteres). Gere em supabase.com/dashboard/account/tokens."; exit 1 ;;
+          esac
+          if [ "$t" != "$(printf '%s' "$t" | tr -d '[:space:]')" ]; then echo "::error::SUPABASE_ACCESS_TOKEN tem espaço ou quebra de linha: cole de novo só o token."; exit 1; fi
+          status=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $t" https://api.supabase.com/v1/projects)
+          if [ "$status" != "200" ]; then echo "::error::O Supabase recusou o SUPABASE_ACCESS_TOKEN (HTTP $status): token apagado, expirado ou de outra conta. Gere outro e atualize o segredo."; exit 1; fi
+          echo "SUPABASE_ACCESS_TOKEN aceito pelo Supabase."
 
       - uses: supabase/setup-cli@v1
         with:
