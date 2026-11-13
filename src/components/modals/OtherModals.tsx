@@ -1,4 +1,5 @@
 import { format } from "date-fns";
+import { UNCLASSIFIED_TYPE_ID } from "../../../supabase/functions/_shared/actionType.ts";
 import { useState } from "react";
 import { brl, fmtDate, maskCNJ, maskDocument, maskPhone, uid } from "../../lib/format";
 import { buildInstallments } from "../../lib/installments";
@@ -71,7 +72,7 @@ export function ProcessModal({ id, preset }: { id?: string; preset?: { funnelId?
   const firstFunnel = settings.funnels.find((f) => f.id === preset?.funnelId) ?? settings.funnels[0];
   const [p, setP] = useState<LegalProcess>(
     existing ?? {
-      id: uid("pr"), number: "", contactIds: [], opposingParty: "", actionGroupId: settings.actionGroups[0]?.id ?? "", actionTypeId: settings.actionTypes[0]?.id ?? "",
+      id: uid("pr"), number: "", contactIds: [], opposingParty: "", actionGroupId: settings.actionGroups[0]?.id ?? "", actionTypeId: settings.actionTypes.find((a) => a.groupId === settings.actionGroups[0]?.id)?.id ?? "",
       funnelId: firstFunnel.id, stageId: preset?.stageId ?? firstFunnel.stages[0]?.id ?? "", responsibleId: me.id, court: "TJDFT", value: 0, status: "ativo",
       createdAt: new Date().toISOString(), movements: [], documents: [], history: [{ id: uid("h"), date: new Date().toISOString(), text: "Processo cadastrado" }], unreadHistory: false,
     },
@@ -80,7 +81,9 @@ export function ProcessModal({ id, preset }: { id?: string; preset?: { funnelId?
   const funnel = settings.funnels.find((f) => f.id === p.funnelId);
   const save = () => {
     if (!p.contactIds.length) return showToast("Escolha o cliente");
-    upsert("processes", { ...p, needsReview: p.contactIds.length ? false : p.needsReview });
+    // Escolher um tipo de verdade tira o selo "A revisar" do tipo de ação.
+    const typeReview = p.actionTypeId === UNCLASSIFIED_TYPE_ID ? true : existing?.actionTypeId !== p.actionTypeId ? false : p.typeReview;
+    upsert("processes", { ...p, needsReview: p.contactIds.length ? false : p.needsReview, typeReview, typeReason: typeReview === p.typeReview ? p.typeReason : "definido manualmente" });
     showToast(existing ? "Processo atualizado" : "Processo cadastrado");
     closeModal();
   };
@@ -119,7 +122,8 @@ export function ProcessModal({ id, preset }: { id?: string; preset?: { funnelId?
         <Field label="Tipo de ação">
           {(i) => (
             <select id={i} className="input" value={p.actionTypeId} onChange={(e) => set({ actionTypeId: e.target.value })}>
-              {settings.actionTypes.filter((a) => a.groupId === p.actionGroupId).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              {settings.actionTypes.filter((a) => a.groupId === p.actionGroupId && a.id !== UNCLASSIFIED_TYPE_ID).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              <option value={UNCLASSIFIED_TYPE_ID}>A classificar</option>
             </select>
           )}
         </Field>

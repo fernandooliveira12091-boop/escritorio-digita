@@ -3,6 +3,7 @@ import type {
   Agent, BankAccount, Campaign, Contact, Contract, Conversation, Funnel, Intimation, LegalProcess, MonitoredTerm, Notification, Partner, Settings, Task, Team, Template, Transaction, User,
 } from "../types";
 import { defaultAttendants } from "../lib/attendants";
+import { ensureUnclassified } from "../../supabase/functions/_shared/actionType.ts";
 
 // Gerador determinístico, para os dados de exemplo serem sempre os mesmos.
 let seed = 42;
@@ -283,8 +284,7 @@ export function buildMockData(now = new Date()) {
     accessLogEnabled: false,
     trialEndsAt: iso(addDays(now, 7)),
     funnels,
-    actionGroups,
-    actionTypes,
+    ...(({ actionGroups: g, actionTypes: t }) => ({ actionGroups: g, actionTypes: t }))(ensureUnclassified(actionGroups, actionTypes)),
     taskTypes,
     origins,
     categories: {

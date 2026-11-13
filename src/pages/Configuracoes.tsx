@@ -1,4 +1,6 @@
 import { ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
+import { ReclassifyTypes } from "../components/ReclassifyTypes";
+import { UNCLASSIFIED_GROUP_ID, UNCLASSIFIED_TYPE_ID } from "../../supabase/functions/_shared/actionType.ts";
 import { useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Avatar, Field, Modal, PageHeader, Tabs, Toggle } from "../components/ui/basics";
@@ -249,24 +251,27 @@ function SectionBody({ section }: { section: Section }) {
     }
     case "grupos":
       return card("Grupos de ação", "Áreas do direito em que o escritório atua. Aparecem nos cartões do CRM.", (
-        <EditableList items={settings.actionGroups} addLabel="Adicionar grupo" onChange={(actionGroups) => updateSettings({ actionGroups })}
+        <EditableList items={settings.actionGroups.filter((g) => g.id !== UNCLASSIFIED_GROUP_ID)} addLabel="Adicionar grupo" onChange={(list) => updateSettings({ actionGroups: [...list, ...settings.actionGroups.filter((g) => g.id === UNCLASSIFIED_GROUP_ID)] })}
           canDelete={(id) => !processes.some((p) => p.actionGroupId === id) || "Há processos neste grupo."} />
       ));
     case "tipos":
-      return card("Tipos de ação", "Cada tipo pertence a um grupo de ação.", (
+      return card("Tipos de ação", "Cada tipo pertence a um grupo de ação. Processos do DJEN sem correspondência segura ficam como “A classificar”, com o selo “A revisar”.", (
+        <>
         <EditableList
-          items={settings.actionTypes}
+          items={settings.actionTypes.filter((t) => t.id !== UNCLASSIFIED_TYPE_ID)}
           addLabel="Adicionar tipo"
           canDelete={(id) => !processes.some((p) => p.actionTypeId === id) || "Há processos com este tipo."}
-          onChange={(list) => updateSettings({ actionTypes: list.map((x) => ({ ...x, groupId: settings.actionTypes.find((a) => a.id === x.id)?.groupId ?? settings.actionGroups[0]?.id ?? "" })) })}
+          onChange={(list) => updateSettings({ actionTypes: [...list.map((x) => ({ ...x, groupId: settings.actionTypes.find((a) => a.id === x.id)?.groupId ?? settings.actionGroups.find((g) => g.id !== UNCLASSIFIED_GROUP_ID)?.id ?? "" })), ...settings.actionTypes.filter((t) => t.id === UNCLASSIFIED_TYPE_ID)] })}
           extra={(id) => (
             <label><span className="sr-only">Grupo</span>
               <select className="input w-auto py-1.5" value={settings.actionTypes.find((a) => a.id === id)?.groupId} onChange={(e) => updateSettings({ actionTypes: settings.actionTypes.map((a) => (a.id === id ? { ...a, groupId: e.target.value } : a)) })}>
-                {settings.actionGroups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+                {settings.actionGroups.filter((g) => g.id !== UNCLASSIFIED_GROUP_ID).map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
               </select>
             </label>
           )}
         />
+        <ReclassifyTypes />
+        </>
       ));
     case "tarefas":
       return card("Tipos de tarefa", "A pontuação de cada tipo alimenta o Taskscore e os relatórios.", (

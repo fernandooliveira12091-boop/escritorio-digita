@@ -84,6 +84,12 @@ export interface LegalProcess {
   conversationId?: string;
   /** Resultado da última consulta ao DataJud. */
   datajudFound?: boolean;
+  /** Assuntos do processo (DataJud). */
+  subjects?: string[];
+  /** Tipo de ação sem correspondência segura: gravado como "A classificar" e marcado "A revisar". */
+  typeReview?: boolean;
+  /** Por que o tipo foi escolhido (ou por que ficou "A classificar"). */
+  typeReason?: string;
   createdAt: string;
   closedAt?: string; // fechamento (contrato assinado)
   filedAt?: string; // ajuizamento

@@ -6,6 +6,7 @@
 //   pelo sistema (usuário logado):  { action: "djen" | "datajud" | "sync", workspaceId, processIds? }
 //   pelo agendamento diário (pg_cron): { action: "cron" } com o cabeçalho x-cron-secret
 import { createClient } from "npm:@supabase/supabase-js@2.117.3";
+import { classifyAction, ensureUnclassified, UNCLASSIFIED_TYPE_ID, type Classification } from "../_shared/actionType.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -134,8 +135,19 @@ async function syncDjen(ws: string, days = 30, full = false) {
   const owner = users.find((u) => u.role === "Gestor" && u.active !== false) ?? users[0];
   const funnels: any[] = settings?.funnels ?? [];
   const judicial = funnels.find((f) => f.name === "Judicial") ?? funnels[0];
-  const group = settings?.actionGroups?.[0];
-  const type = settings?.actionTypes?.find((t: any) => t.groupId === group?.id) ?? settings?.actionTypes?.[0];
+  // Tipo de ação: decidido por processo, pela classe/assunto/partes/órgão da publicação (ver _shared/actionType.ts).
+  // Antes usava sempre o primeiro grupo e o primeiro tipo da tabela ("Reparação de danos (trânsito)").
+  const table = ensureUnclassified(settings?.actionGroups ?? [], settings?.actionTypes ?? []);
+  let usedUnclassified = false;
+  const classify = (it: any, partiesList: { nome: string; polo?: string }[], extraTexts: string[] = []): Classification => {
+    const c = classifyAction({
+      className: it.nomeClasse, orgao: it.nomeOrgao, court: it.siglaTribunal, parties: partiesList,
+      texts: [stripHtml(it.texto ?? ""), ...extraTexts],
+    }, table.actionGroups, table.actionTypes);
+    if (c.typeId === UNCLASSIFIED_TYPE_ID) usedUnclassified = true;
+    return c;
+  };
+  const typeLabel = (c: Classification) => table.actionTypes.find((t: any) => t.id === c.typeId)?.name ?? "A classificar";
 
   const newIntimations: Doc[] = [];
   const touched = new Map<string, Doc>(); // processos e intimações já existentes que ganharam as partes
@@ -180,15 +192,30 @@ async function syncDjen(ws: string, days = 30, full = false) {
         const raw = it.numeroprocessocommascara ?? it.numero_processo ?? it.numeroProcesso ?? "";
         const number = maskCNJ(String(raw));
         let proc = byNumber.get(digits(number));
+        if (proc && proc.typeReview) {
+          // Processo ainda "A classificar": a publicação nova pode trazer a pista que faltava.
+          const texts = intimations.filter((i) => i.processId === proc!.id).map((i) => String(i.text ?? "")).slice(-5);
+          const c = classify(it, proc.partiesList?.length ? proc.partiesList : partiesList, texts);
+          if (c.sure) {
+            proc = {
+              ...proc, actionGroupId: c.groupId, actionTypeId: c.typeId, typeReview: false, typeReason: c.reason,
+              history: [...(proc.history ?? []), { id: `h_tipo_${Date.now()}`, date: nowIso(), text: `Tipo de ação classificado: ${typeLabel(c)} (${c.reason})` }],
+            };
+            byNumber.set(digits(number), proc);
+            touched.set(`p:${proc.id}`, proc);
+          }
+        }
         if (!proc && digits(number).length === 20 && judicial) {
+          const c = classify(it, partiesList);
           proc = {
-            id: `pr_djen_${digits(number)}`, number, contactIds: [], opposingParty: "", actionGroupId: group?.id ?? "", actionTypeId: type?.id ?? "",
+            id: `pr_djen_${digits(number)}`, number, contactIds: [], opposingParty: "", actionGroupId: c.groupId, actionTypeId: c.typeId,
+            typeReview: !c.sure, typeReason: c.reason,
             funnelId: judicial.id, stageId: judicial.stages?.[0]?.id ?? "", responsibleId: owner?.id ?? "", court: it.siglaTribunal ?? "", value: 0,
             status: "ativo", createdAt: nowIso(), movements: [], documents: [], unreadHistory: true, needsReview: true,
             className: it.nomeClasse ?? undefined, orgao: it.nomeOrgao ?? undefined,
             parties: parties || undefined,
             partiesList: partiesList.length ? partiesList : undefined,
-            history: [{ id: `h_${Date.now()}_${novas}`, date: nowIso(), text: `Cadastrado automaticamente a partir de publicação no DJEN (OAB ${term.oabUf} ${term.oabNumber})${parties ? `. Partes: ${parties}` : ""}` }],
+            history: [{ id: `h_${Date.now()}_${novas}`, date: nowIso(), text: `Cadastrado automaticamente a partir de publicação no DJEN (OAB ${term.oabUf} ${term.oabNumber})${parties ? `. Partes: ${parties}` : ""}. Tipo de ação: ${typeLabel(c)}${c.sure ? "" : " (revisar)"} – ${c.reason}` }],
           };
           byNumber.set(digits(number), proc);
           newProcesses.push(proc);
@@ -210,6 +237,10 @@ async function syncDjen(ws: string, days = 30, full = false) {
     }
   }
 
+  // "A classificar" precisa existir na tabela de Tipos de ação para aparecer nas telas e filtros.
+  if (usedUnclassified && table.changed && settings) {
+    await putRecords(ws, "settings", [{ ...settings, id: "main", actionGroups: table.actionGroups, actionTypes: table.actionTypes }]);
+  }
   await putRecords(ws, "processes", [...newProcesses, ...[...touched].filter(([k]) => k.startsWith("p:")).map(([, v]) => v)]);
   await putRecords(ws, "intimations", [...touched].filter(([k]) => k.startsWith("i:")).map(([, v]) => v));
   await putRecords(ws, "intimations", newIntimations);
@@ -245,7 +276,8 @@ async function fetchDatajud(number: string) {
 }
 
 async function syncDatajud(ws: string, opts: { processIds?: string[]; limit?: number }) {
-  const processes = await getCollection(ws, "processes");
+  const [processes, settings] = await Promise.all([getCollection(ws, "processes"), getSettings(ws)]);
+  const table = ensureUnclassified(settings?.actionGroups ?? [], settings?.actionTypes ?? []);
   let list = processes.filter((p) => p.status !== "arquivado" && datajudAlias(p.number ?? ""));
   if (opts.processIds?.length) list = processes.filter((p) => opts.processIds!.includes(p.id) && datajudAlias(p.number ?? ""));
   // Primeiro os nunca consultados, depois os consultados há mais tempo.
@@ -286,11 +318,24 @@ async function syncDatajud(ws: string, opts: { processIds?: string[]; limit?: nu
         court: p.court || first.tribunal || "",
         className: first.classe?.nome ?? p.className,
         orgao: first.orgaoJulgador?.nome ?? p.orgao,
+        subjects: (first.assuntos ?? []).flat().map((a: any) => a?.nome).filter(Boolean),
         filedAt: p.filedAt ?? (first.dataAjuizamento ? parseDataHora(first.dataAjuizamento) : undefined),
       };
+      // Processo "A classificar": os assuntos do DataJud costumam resolver (ex.: "Auxílio-Doença Previdenciário").
+      if (p.typeReview) {
+        const c = classifyAction({ className: next.className, subjects: next.subjects, orgao: next.orgao, court: next.court, parties: p.partiesList, partiesText: p.parties }, table.actionGroups, table.actionTypes);
+        if (c.sure) {
+          next.actionGroupId = c.groupId;
+          next.actionTypeId = c.typeId;
+          next.typeReview = false;
+          next.typeReason = c.reason;
+          next.history = [...(next.history ?? p.history ?? []), { id: `h_tipo_${Date.now()}`, date: nowIso(), text: `Tipo de ação classificado pelo DataJud: ${table.actionTypes.find((t: any) => t.id === c.typeId)?.name} (${c.reason})` }];
+          next.unreadHistory = true;
+        }
+      }
       if (fromDatajud.length > before) {
         next.unreadHistory = true;
-        next.history = [...(p.history ?? []), { id: `h_dj_${Date.now()}`, date: nowIso(), text: `${fromDatajud.length - before} andamento(s) novo(s) pelo DataJud` }];
+        next.history = [...(next.history ?? p.history ?? []), { id: `h_dj_${Date.now()}`, date: nowIso(), text: `${fromDatajud.length - before} andamento(s) novo(s) pelo DataJud` }];
         result.atualizados++;
       }
       updated.push(next);

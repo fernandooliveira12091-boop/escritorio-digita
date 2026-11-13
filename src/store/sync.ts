@@ -3,6 +3,7 @@ import { create } from "zustand";
 import { uid } from "../lib/format";
 import { supabase } from "../lib/supabase";
 import { buildMockData, DEFAULT_OAB } from "../mocks/data";
+import { ensureUnclassified } from "../../supabase/functions/_shared/actionType.ts";
 import type { Settings, User } from "../types";
 import { COLLECTION_KEYS, useStore, type CollectionKey, type Collections } from "./useStore";
 
@@ -154,6 +155,12 @@ export async function startSync(wsId: string, auth: { id: string; email: string;
   applyRemote(() =>
     useStore.setState({ ...(loaded as unknown as Collections), settings: { ...defaults, ...(settings ?? {}) }, meId: null }),
   );
+
+  // Garante o tipo "A classificar" (processos do DJEN sem tipo seguro) na tabela de Tipos de ação.
+  const st = useStore.getState().settings;
+  const ensured = ensureUnclassified(st.actionGroups, st.actionTypes);
+  if (ensured.changed && settings) queueUpsert(SETTINGS, "main", { ...st, actionGroups: ensured.actionGroups, actionTypes: ensured.actionTypes });
+  if (ensured.changed) applyRemote(() => useStore.setState({ settings: { ...st, actionGroups: ensured.actionGroups, actionTypes: ensured.actionTypes } }));
 
   // 2. Observa a store e envia as mudanças.
   stopFns.push(useStore.subscribe((state, prev) => { if (!applyingRemote) diffAndQueue(state, prev); }));

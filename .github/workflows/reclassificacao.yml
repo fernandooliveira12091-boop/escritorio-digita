@@ -1,0 +1,49 @@
+# Simulação da reclassificação do tipo de ação dos processos do DJEN, com os dados reais.
+# NÃO grava nada. O repositório é público: o log mostra só contagens por tipo (sem número de processo,
+# nomes de partes ou textos). A lista processo a processo e a gravação ficam no sistema:
+# Configurações › Tipos de ação › Corrigir tipos de ação dos processos do DJEN.
+name: Reclassificação de tipos (simulação)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  simular:
+    runs-on: ubuntu-latest
+    env:
+      PROJECT_REF: lihwcjlstpgdqyvdkmjd
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      WS: ${{ secrets.WHATSAPP_WORKSPACE_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Ler processos e intimações (sem imprimir)
+        run: |
+          q="select jsonb_build_object(
+            'settings', (select data from records where workspace_id = '$WS' and collection = 'settings' and id = 'main'),
+            'processes', coalesce((select jsonb_agg(jsonb_build_object(
+                'id', data->'id', 'number', data->'number', 'actionTypeId', data->'actionTypeId', 'actionGroupId', data->'actionGroupId',
+                'typeReview', data->'typeReview', 'className', data->'className', 'orgao', data->'orgao', 'court', data->'court',
+                'subjects', data->'subjects', 'parties', data->'parties', 'partiesList', data->'partiesList',
+                'history', jsonb_build_array(data->'history'->0)))
+              from records where workspace_id = '$WS' and collection = 'processes'), '[]'::jsonb),
+            'intimations', coalesce((select jsonb_agg(jsonb_build_object('processId', data->'processId', 'text', left(data->>'text', 4000)))
+              from records where workspace_id = '$WS' and collection = 'intimations' and data->>'processId' is not null), '[]'::jsonb)
+          ) as dados;"
+          curl -sf -X POST "https://api.supabase.com/v1/projects/$PROJECT_REF/database/query" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+            -d "$(jq -n --arg q "$q" '{query: $q}')" | jq '.[0].dados' > "$RUNNER_TEMP/dados.json"
+          jq '{processos: (.processes | length), intimacoes: (.intimations | length), tipos_na_tabela: (.settings.actionTypes | length)}' "$RUNNER_TEMP/dados.json"
+
+      - name: Simular (só contagens)
+        run: node --experimental-strip-types scripts/reclassificar-tipos.ts "$RUNNER_TEMP/dados.json" --resumo
+
+      - name: Apagar os dados do runner
+        if: always()
+        run: rm -f "$RUNNER_TEMP/dados.json"

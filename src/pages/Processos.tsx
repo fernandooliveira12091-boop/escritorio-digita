@@ -14,6 +14,7 @@ import { ImportClientsModal, processesWithoutClient } from "../components/Import
 import { useUi } from "../store/ui";
 import { useStore } from "../store/useStore";
 import type { LegalProcess } from "../types";
+import { UNCLASSIFIED_TYPE_ID } from "../../supabase/functions/_shared/actionType.ts";
 
 const VIEWS = {
   todos: "Todos os processos",
@@ -42,6 +43,8 @@ export default function Processos() {
   const [search, setSearch] = useState("");
   const [kpi, setKpi] = useState<"" | "ativos" | "fech" | "arq">("");
   const [respId, setRespId] = useState("");
+  /** "" = todos; "__revisar" = tipo a revisar; senão, o id do tipo de ação. */
+  const [typeId, setTypeId] = useState("");
   const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" }>({ key: "createdAt", dir: "desc" });
 
   const name = (p: LegalProcess) => contacts.find((c) => c.id === p.contactIds[0])?.name ?? "—";
@@ -65,7 +68,9 @@ export default function Processos() {
       default: return true;
     }
   };
+  const byType = (p: LegalProcess) => !typeId || (typeId === "__revisar" ? !!p.typeReview || p.actionTypeId === UNCLASSIFIED_TYPE_ID : p.actionTypeId === typeId);
   const rows = processes
+    .filter(byType)
     .filter(byView)
     .filter((p) => (kpi === "ativos" ? p.status === "ativo" : kpi === "fech" ? inMonth(p.closedAt) : kpi === "arq" ? inMonth(p.archivedAt) : true))
     .filter((p) => !respId || p.responsibleId === respId)
@@ -78,11 +83,12 @@ export default function Processos() {
   const archived = processes.filter((p) => inMonth(p.archivedAt)).length;
   const archivedPrev = processes.filter((p) => inMonth(p.archivedAt, 1)).length;
   const phases = settings.funnels.filter((f) => !["Financeiro", "Arquivamento"].includes(f.name));
-  const volume = phases.map((f) => ({ name: f.name, value: processes.filter((p) => p.funnelId === f.id && p.status !== "arquivado").length }));
+  const volume = phases.map((f) => ({ name: f.name, value: processes.filter((p) => byType(p) && p.funnelId === f.id && p.status !== "arquivado").length }));
+  const typeFilterLabel = typeId === "__revisar" ? "Tipo a revisar" : settings.actionTypes.find((t) => t.id === typeId)?.name;
 
   const columns: Column<LegalProcess>[] = [
-    { key: "parties", header: "Partes", sortValue: name, render: (p) => <span><b className="font-medium">{p.needsReview && !p.contactIds.length ? "Cliente não vinculado" : name(p)}</b>{p.needsReview && <span className="chip ml-2 bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">A revisar</span>}<span className="muted block text-xs">x {p.opposingParty || "—"}</span></span> },
-    { key: "type", header: "Tipo de ação", sortValue: typeName, render: typeName },
+    { key: "parties", header: "Partes", sortValue: name, render: (p) => <span><b className="font-medium">{p.needsReview && !p.contactIds.length ? "Cliente não vinculado" : name(p)}</b>{(p.needsReview || p.typeReview) && <span className="chip ml-2 bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400" title={[p.needsReview && !p.contactIds.length ? "Cliente não vinculado" : "", p.typeReview ? `Tipo de ação: ${p.typeReason ?? "a classificar"}` : ""].filter(Boolean).join(" · ")}>A revisar</span>}<span className="muted block text-xs">x {p.opposingParty || "—"}</span></span> },
+    { key: "type", header: "Tipo de ação", sortValue: typeName, render: (p) => <span className={p.actionTypeId === UNCLASSIFIED_TYPE_ID ? "text-amber-700 dark:text-amber-400" : ""} title={p.typeReason}>{typeName(p)}</span> },
     { key: "number", header: "Número do processo", sortValue: (p) => p.number, render: (p) => <span className="whitespace-nowrap tabular-nums">{p.number || "—"}</span> },
     { key: "createdAt", header: "Data cadastro", sortValue: (p) => p.createdAt, render: (p) => <span className="tabular-nums">{fmtDate(p.createdAt)}</span> },
     { key: "last", header: "Último andamento", render: (p) => <span className="muted">{lastMov(p)?.text ?? "—"}</span> },
@@ -99,7 +105,7 @@ export default function Processos() {
       </div>
       <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
         <div className="card">
-          <h2 className="h2 mb-2">Volume por fase</h2>
+          <h2 className="h2 mb-2">Volume por fase{typeFilterLabel && <span className="muted ml-2 text-sm font-normal">· {typeFilterLabel}</span>}</h2>
           <div className="h-56">
             <ResponsiveContainer>
               <BarChart data={volume} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
@@ -141,9 +147,26 @@ export default function Processos() {
             extra={<button className="btn" onClick={() => setImportOpen(true)}><UserPlus size={16} /> Importar dos processos{semCliente > 0 && <span className="chip bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">{semCliente}</span>}</button>}
             search={search}
             onSearch={setSearch}
-            filterCount={respId ? 1 : 0}
-            onClearFilters={() => setRespId("")}
-            filterContent={<Field label="Responsável">{(id) => <select id={id} className="input" value={respId} onChange={(e) => setRespId(e.target.value)}><option value="">Todos</option>{users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select>}</Field>}
+            filterCount={(respId ? 1 : 0) + (typeId ? 1 : 0)}
+            onClearFilters={() => { setRespId(""); setTypeId(""); }}
+            filterContent={
+              <div className="space-y-3">
+                <Field label="Responsável">{(id) => <select id={id} className="input" value={respId} onChange={(e) => setRespId(e.target.value)}><option value="">Todos</option>{users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select>}</Field>
+                <Field label="Tipo de ação">
+                  {(id) => (
+                    <select id={id} className="input" value={typeId} onChange={(e) => setTypeId(e.target.value)}>
+                      <option value="">Todos</option>
+                      <option value="__revisar">A revisar / A classificar</option>
+                      {settings.actionGroups.filter((g) => settings.actionTypes.some((t) => t.groupId === g.id && t.id !== UNCLASSIFIED_TYPE_ID)).map((g) => (
+                        <optgroup key={g.id} label={g.name}>
+                          {settings.actionTypes.filter((t) => t.groupId === g.id && t.id !== UNCLASSIFIED_TYPE_ID).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                        </optgroup>
+                      ))}
+                    </select>
+                  )}
+                </Field>
+              </div>
+            }
             sortOptions={[{ key: "createdAt", label: "Data cadastro" }, { key: "lastDate", label: "Data andamento" }, { key: "parties", label: "Partes" }]}
             sort={sort}
             onSort={setSort}
